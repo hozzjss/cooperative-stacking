@@ -120,7 +120,8 @@
     total-required-stake: uint,
     pox-address: {version: (buff 1), hash: (buff 20),},
   })
-  
+
+(define-map cycles-locked-amounts {cycle: uint} {locked-amount: uint})
 
 
 (define-map delegators 
@@ -160,10 +161,10 @@
 
     (asserts! (deposit collateral)
       (err ERROR-wtf-stacks!!!))
-
+    (map-set cycles-locked-amounts {cycle: next-cycle} {locked-amount: u0})
     (ok (map-set stacking-offer-details 
       {
-        cycle: (get-next-cycle-id),
+        cycle: next-cycle,
       } 
       {
         pledged-payout: pledged-payout, 
@@ -240,17 +241,22 @@
   (ok (> (get-current-cycle-id) cycle)))
 
 
-(define-public (do-delegate (amount uint)) 
+(define-public (delegate (amount uint)) 
     (let 
-      ((cycle-info (get-cycle (get-next-cycle-id)))
+      ((cycle-id (get-next-cycle-id))
+      (cycle-info (get-cycle cycle-id))
       (pox-address (get pox-address cycle-info))
       (cycle-count (get cycle-count cycle-info))
+      (is-new-delegator (is-none (map-get? delegators {cycle: cycle-id, delegator: tx-sender})))
+      (cycle-locked-amount (get locked-amount (unwrap-panic (map-get? cycles-locked-amounts {cycle: cycle-id}))))
       (minimum-stake (get minimum-stake cycle-info))
       (balance (stx-get-balance tx-sender)))
       (asserts! (is-eq amount minimum-stake) 
         (err ERROR-you-poor-lol))
       (asserts! (>= balance amount) 
         (err ERROR-you-poor-lol))
+      (asserts! is-new-delegator 
+        (err ERROR-didnt-we-just-go-through-this-the-other-day))
       (contract-call? 
         'ST000000000000000000002AMW42H.pox 
         delegate-stx 
@@ -268,6 +274,7 @@
           (as-contract tx-sender)
           until-block-ht
           cycle-count)
+      (map-set cycles-locked-amounts {cycle: cycle-id} {locked-amount: (+ cycle-locked-amount amount)})
       (ok (map-set delegators {
         delegator: tx-sender,
         cycle: (get-next-cycle-id)
@@ -275,8 +282,7 @@
       {
         did-withdraw-rewards: false,
         locked-amount: amount
-      }))
-      ))
+      }))))
     ;; (ok true))
 
 
@@ -299,8 +305,9 @@
 
 (define-private (increase-deposit (amount uint)) 
   (let ((new-collateral-amount (+ (get-current-deposit tx-sender) amount))
-        (promised-rewards (get pledged-payout (get-current-cycle-info tx-sender)))
-        (cycle-count (get cycle-count (get-current-cycle-info tx-sender)))
+        (cycle-info (get-current-cycle-info tx-sender))
+        (promised-rewards (get pledged-payout cycle-info))
+        (cycle-count (get cycle-count cycle-info))
         (cycle-expired (unwrap-panic (is-pool-expired)))
         (reputation (ft-get-balance decent-delegate-reputation stacker))
         (no-more-rep (reputation-no-mo!))

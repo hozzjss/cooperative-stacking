@@ -19,27 +19,27 @@ describe("decent delegate contract test suite", () => {
       await decentDelegateClient.deployContract();
     });
 
-    // it("Create pool", async () => {
-    //   const tx = decentDelegateClient.createTransaction({
-    //     method: {
-    //       name: 'create-decent-pool',
-    //       args: [
-    //         "u15000000000",
-    //         "u100000000",
-    //         "u1",
-    //         "u1",
-    //         "u1000",
-    //         "u1000000000000",
-    //         "{hash: 0x0000000000000000000000000000000000000000, version: 0x00}",
-    //       ]
-    //     },
-    //   })
-    //   // query.sign('421a4472c07e13886eaa9229573140ad5e889f3dd7090ab4ac919e5d84b9dce8')
-    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
-    //   const receipt = await decentDelegateClient.submitTransaction(tx);
-    //   const result = Result.unwrap(receipt);
-    //   console.log(result);
-    // })
+    it("Create pool", async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'create-decent-pool',
+          args: [
+            "u15000000000",
+            "u100000000",
+            "u1",
+            "u1",
+            "u1000",
+            "u1000000000000",
+            "{hash: 0x0000000000000000000000000000000000000000, version: 0x00}",
+          ]
+        },
+      })
+      // query.sign('421a4472c07e13886eaa9229573140ad5e889f3dd7090ab4ac919e5d84b9dce8')
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      const receipt = await decentDelegateClient.submitTransaction(tx);
+      const result = Result.unwrap(receipt);
+      console.log(result);
+    })
     // it("should return 'decent delegate'", async () => {
     //   const query = decentDelegateClient.createQuery({ method: { name: "say-hi", args: [] } });
     //   const receipt = await decentDelegateClient.submitQuery(query);
