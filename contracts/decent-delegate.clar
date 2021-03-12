@@ -146,7 +146,7 @@
     (next-cycle (get-next-cycle-id))
     (minimum-stake-for-cycle (get-pox-info))) 
 
-    (asserts! (is-eq contract-caller tx-sender)
+    (asserts! (is-not-called-by-another-contract)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
     (asserts! (is-creator)
       (err ERROR-not-my-president!))
@@ -186,7 +186,7 @@
     (asserts! (is-creator)
       (err ERROR-this-aint-a-donation-box))
 
-    (asserts! (is-eq contract-caller tx-sender)
+    (asserts! (is-not-called-by-another-contract)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
 
     (asserts! (>= balance amount)
@@ -360,6 +360,8 @@
 (define-private (is-creator) 
   (is-eq stacker tx-sender))
 
+(define-private (is-not-called-by-another-contract) 
+  (is-eq contract-caller tx-sender))
 
 ;; what rewards you could get right now
 ;; and what rewards you could get later
