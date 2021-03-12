@@ -1,4 +1,4 @@
-import { Client, Provider, ProviderRegistry, Result } from "@blockstack/clarity";
+import { Client, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
 import { standardPrincipalCV } from "@stacks/transactions";
 import { assert } from "chai";
 
@@ -18,8 +18,8 @@ describe("decent delegate contract test suite", () => {
     before(async () => {
       await decentDelegateClient.deployContract();
     });
-
-    it("Create pool", async () => {
+    
+    it('should create a pool', async () => {
       const tx = decentDelegateClient.createTransaction({
         method: {
           name: 'create-decent-pool',
@@ -40,21 +40,20 @@ describe("decent delegate contract test suite", () => {
       const result = Result.unwrap(receipt);
       console.log(result);
     })
-    // it("should return 'decent delegate'", async () => {
-    //   const query = decentDelegateClient.createQuery({ method: { name: "say-hi", args: [] } });
-    //   const receipt = await decentDelegateClient.submitQuery(query);
-    //   const result = Result.unwrapString(receipt, "utf8");
-    //   assert.equal(result, "decent delegate");
-    // });
-
-    // it("should echo number", async () => {
+    
+    // it("it should have a locked amount of u0 initially", async () => {
     //   const query = decentDelegateClient.createQuery({
-    //     method: { name: "echo-number", args: ["123"] }
-    //   });
-    //   const receipt = await decentDelegateClient.submitQuery(query);
-    //   const result = Result.unwrapInt(receipt)
-    //   assert.equal(result, 123);
-    // });
+    //     method: {
+    //       name: "get-locked-amount",
+    //       args: ["u0"]
+    //     }
+    //   })
+    //   const result = await decentDelegateClient.submitQuery(query);
+      
+    //   console.log(unwrapResult(result))
+    // })
+
+    // it('should ')
   });
 
   after(async () => {
