@@ -42,30 +42,30 @@
 ;;       } none))
 
 ;; why am i doing this to myself?!
-(define-trait pox-fns ((get-pox-info () 
-  (response 
-      {
-        current-rejection-votes: uint, 
-        first-burnchain-block-height: uint, 
-        min-amount-ustx: uint, 
-        prepare-cycle-length: uint, 
-        rejection-fraction: uint, 
-        reward-cycle-id: uint, 
-        reward-cycle-length: uint, 
-        total-liquid-supply-ustx: uint
-      }
+;; (define-trait pox-fns ((get-pox-info () 
+;;   (response 
+;;       {
+;;         current-rejection-votes: uint, 
+;;         first-burnchain-block-height: uint, 
+;;         min-amount-ustx: uint, 
+;;         prepare-cycle-length: uint, 
+;;         rejection-fraction: uint, 
+;;         reward-cycle-id: uint, 
+;;         reward-cycle-length: uint, 
+;;         total-liquid-supply-ustx: uint
+;;       }
 
-      {
-        current-rejection-votes: uint, 
-        first-burnchain-block-height: uint, 
-        min-amount-ustx: uint, 
-        prepare-cycle-length: uint, 
-        rejection-fraction: uint, 
-        reward-cycle-id: uint, 
-        reward-cycle-length: uint, 
-        total-liquid-supply-ustx: uint
-      }
-))))
+;;       {
+;;         current-rejection-votes: uint, 
+;;         first-burnchain-block-height: uint, 
+;;         min-amount-ustx: uint, 
+;;         prepare-cycle-length: uint, 
+;;         rejection-fraction: uint, 
+;;         reward-cycle-id: uint, 
+;;         reward-cycle-length: uint, 
+;;         total-liquid-supply-ustx: uint
+;;       }
+;; ))))
 
 
 ;; this token would be awarded at the end of each successful cycle
@@ -89,13 +89,15 @@
 (define-constant ERROR-you-cant-get-any-awesomer u1008)
 (define-constant ERROR-you-had-12-chances-wtf! u1009)
 (define-constant ERROR-you-are-not-welcome-here u1010)
+(define-constant ERROR-this-number-is-a-disgrace!! u1011)
+
 ;; replace this with your public key hash pay to public key hash p2pkh, i learnt that yesterday
 
 ;; (define-constant pox-address {hash: 0x0000000000000000000000000000000000000000, version: 0x00})
 
 (define-constant contract-address (as-contract tx-sender))
 (define-constant stacker tx-sender)
-
+(define-constant min-pledge (to-ustx u10000))
 ;; opinionated: pool which could be granted reputation points
 (define-constant minimum-viable-pool-reward (to-ustx u5000))
 
@@ -136,7 +138,6 @@
     (cycle-count uint)
     (collateral uint)
     (lock-collateral-period uint)
-    (pool-join-interval uint)
     (total-required-stake uint)
     (pox-address {hash: (buff 20), version: (buff 1)}))
 
@@ -150,6 +151,8 @@
     (asserts! (is-creator)
       (err ERROR-not-my-president!))
 
+    (asserts! (>= pledged-payout min-pledge)
+      (err ERROR-this-number-is-a-disgrace!!))
     (asserts! (>= balance collateral)
       (err ERROR-you-poor-lol))
     (asserts! (is-none (map-get? stacking-offer-details {cycle: next-cycle})) 
@@ -318,11 +321,11 @@
 (define-private (get-current-cycle-info) 
   (get-cycle (get-current-cycle-id)))
 
-(define-private (get-pox-info-signature (pox-contract <pox-fns>)) 
-  (contract-call? pox-contract get-pox-info))
+;; (define-private (get-pox-info-signature (pox-contract <pox-fns>)) 
+;;   (contract-call? pox-contract get-pox-info))
 
 (define-private (get-pox-info) 
-  (get-pox-info-signature 'ST000000000000000000002AMW42H.pox))
+  (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info))
   ;; (ok {
   ;;       current-rejection-votes: u0, 
   ;;       first-burnchain-block-height: u0, 
