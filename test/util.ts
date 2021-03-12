@@ -3,7 +3,9 @@ import {
   cvToJSON,
   standardPrincipalCV,
 } from "@stacks/transactions";
+import {address} from 'bitcoinjs-lib'
 
+console.log(address.fromBase58Check("1111111111111111111114oLvT2").hash.toString('hex'))
 const run = async () => {
   const result =await callReadOnlyFunction({
     contractAddress: "SP000000000000000000002Q6VF78",
