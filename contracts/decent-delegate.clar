@@ -88,6 +88,7 @@
 (define-constant ERROR-i-have-never-met-this-man-in-my-life u1007)
 (define-constant ERROR-you-cant-get-any-awesomer u1008)
 (define-constant ERROR-you-had-12-chances-wtf! u1009)
+(define-constant ERROR-you-are-not-welcome-here u1010)
 ;; replace this with your public key hash pay to public key hash p2pkh, i learnt that yesterday
 
 ;; (define-constant pox-address {hash: 0x0000000000000000000000000000000000000000, version: 0x00})
@@ -201,12 +202,21 @@
 ;; they would be reserved for the stacker
 (define-public (redeem-reward (cycle uint) (delegator principal))
   ;; if within the cycle when not enough funds 
-  (let ((delegator-info (get-stacker-info delegator))
-        (locked-amount (get locked-amount (unwrap-panic (map-get? delegators {delegator: delegator, cycle: cycle}))))) 
-    (asserts! (is-some delegator-info)
-    ;; delegators must stack their stacks using the contract
-    ;; otherwise their rewards are given back to the delegate
-      (err ERROR-i-have-never-met-this-man-in-my-life))
+  (let ((delegator-info (unwrap-panic (map-get? delegators {cycle: cycle, delegator: delegator})))
+        (locked-amount (get locked-amount delegator-info))
+        (cycle-info (get-cycle cycle))
+        (total-stake (get total-required-stake cycle-info))
+        (was-patient (unwrap-panic (is-pool-expired cycle)))
+        (reward-info (calculate-cycle-rewards cycle locked-amount total-stake))
+        (patient-reward (get rewards-if-patient reward-info))
+        (impatient-reward (get rewards-if-impatient reward-info))
+        (reward-to-payout (if was-patient patient-reward impatient-reward)))
+    (asserts! (is-eq tx-sender delegator) 
+      (err ERROR-you-are-not-welcome-here))
+    (asserts! (> reward-to-payout u0) 
+      (err ERROR-you-poor-lol))
+    (asserts! (is-ok (stx-transfer? reward-to-payout contract-address delegator))
+      (err ERROR-wtf-stacks!!!))
     (map-set delegators 
       {
         delegator: delegator, 
@@ -223,8 +233,8 @@
     (ok true))
   )
 
-(define-read-only (is-pool-expired (cycle uint)) 
-  (> (get-current-cycle-id) cycle))
+(define-public (is-pool-expired (cycle uint)) 
+  (ok (> (get-current-cycle-id) cycle)))
 
 
 (define-public (do-delegate (amount uint)) 
@@ -288,7 +298,7 @@
   (let ((new-collateral-amount (+ (get-current-deposit tx-sender) amount))
         (promised-rewards (get pledged-payout (get-current-cycle-info tx-sender)))
         (cycle-count (get cycle-count (get-current-cycle-info tx-sender)))
-        (cycle-expired (is-pool-expired))
+        (cycle-expired (unwrap-panic (is-pool-expired)))
         (reputation (ft-get-balance decent-delegate-reputation stacker))
         (no-more-rep (reputation-no-mo!))
         (is-promise-fulfilled (>= new-collateral-amount promised-rewards)))
@@ -350,7 +360,7 @@
 
 ;; what rewards you could get right now
 ;; and what rewards you could get later
-(define-read-only (calculate-cycle-reward (cycle uint) (personal-stake uint) (total-stake uint)) 
+(define-read-only (calculate-cycle-rewards (cycle uint) (personal-stake uint) (total-stake uint)) 
   (let (
         (current-cycle-info (get-cycle cycle))
         (pledged-payout (get pledged-payout current-cycle-info))
