@@ -57,7 +57,6 @@
 (define-constant ERROR-you-poor-lol u1001)
 (define-constant ERROR-bitch-this-aint-a-donation-box u1002)
 (define-constant contract-address (as-contract tx-sender))
-(define-constant stacker tx-sender)
 
 ;; (define-constant pox 'ST000000000000000000002AMW42H.pox)
 
@@ -66,7 +65,7 @@
 (define-constant lock-collateral-period-min u200)
 
 (define-map stacking-offer-details 
-  {cycle: uint}
+  {cycle: uint, stacker: principal}
   {
     total-payout: uint,
     minimum-stake: uint,
@@ -74,11 +73,11 @@
     min-collateral: uint,
     deposited-collateral: uint,
     lock-collateral-period: uint,
-    total-required-stake: uint
-  }
-)
+    total-required-stake: uint})
+  
 
-(map-set stacking-offer-details {cycle: u4} {
+
+(map-set stacking-offer-details {cycle: u4} {}
   total-payout: (to-ustx u15000), 
   minimum-stake: (to-ustx u100),
   cycle-count: u1,
@@ -86,8 +85,8 @@
   ;; equal to 1 million
   deposited-collateral: u0,
   lock-collateral-period: u200,
-  total-required-stake: (to-ustx (to-ustx u1))
-})
+  total-required-stake: (to-ustx (to-ustx u1)))
+
 
 
 (define-data-var current-cycle uint u4)
@@ -95,15 +94,15 @@
 
 (define-map delegators 
   {delegator: principal} 
-  {did-withdraw-reward: bool}
-)
+  {did-withdraw-reward: bool})
 
 
-(define-public (deposit-to-collateral (amount uint)) 
-  (let (
-    (balance (stx-get-balance tx-sender))) 
 
-    (asserts! (is-stacker)
+(define-public (deposit-to-collateral (stacker principal) (amount uint)) 
+  (let 
+    ((balance (stx-get-balance tx-sender))) 
+
+    (asserts! (is-eq stacker tx-sender)
       (err ERROR-bitch-this-aint-a-donation-box))
 
     (asserts! (is-eq contract-caller tx-sender)
@@ -115,16 +114,15 @@
     (asserts! (deposit amount)
       (err ERROR-you-poor-lol))
 
-    (asserts! (increase-deposit amount)
-      (err ERROR-you-poor-lol))
-    )
+    (increase-deposit stacker amount)))
+      
+    
 
 
 
 (define-private (do-delegate (amount uint) (until-block-ht uint)) 
     ;; (contract-call? pox delegate-stx (to-ustx amount) (as-contract tx-sender) until-block-ht none))
     (ok true))
-
 
 
 ;; util
@@ -136,118 +134,83 @@
 (define-private (deposit (amount uint)) 
   (is-ok (stx-transfer? amount tx-sender contract-address)))
 
-(define-private (is-stacker) 
-  (is-eq tx-sender stacker))
+(define-private (get-current-deposit (stacker principal)) 
+  (get deposited-collateral (get-current-cycle stacker)))
 
-(define-private (get-current-deposit) 
-  (get deposited-collateral (get-current-cycle)))
+(define-private (set-current-cycle
+                  (stacker principal)
+                  (deposited-collateral (optional uint))
+                  (total-payout (optional uint))
+                  (minimum-stake (optional uint))
+                  (cycle-count (optional uint))
+                  (min-collateral (optional uint))
+                  (lock-collateral-period (optional uint))
+                  (total-required-stake (optional uint)))
 
-(define-private (set-current-cycle 
-  (deposited-collateral (optional uint))
-  (total-payout (optional uint))
-  (minimum-stake (optional uint))
-  (cycle-count (optional uint))
-  (min-collateral (optional uint))
-  (lock-collateral-period (optional uint))
-  (total-required-stake (optional uint))
-) 
   (let (
-    (current-cycle-info (get-current-cycle))
-    (default-deposited-collateral (get deposited-collateral current-cycle-info))
-    (default-total-payout (get total-payout current-cycle-info))
-    (default-minimum-stake (get minimum-stake current-cycle-info))
-    (default-cycle-count (get cycle-count current-cycle-info))
-    (default-min-collateral (get min-collateral current-cycle-info))
-    (default-lock-collateral-period (get lock-collateral-period current-cycle-info))
-    (default-total-required-stake (get total-required-stake current-cycle-info))
-  )
-  (map-set stacking-offer-details 
-    {cycle: (var-get current-cycle)}
-    {
-      deposited-collateral: (default-to default-deposited-collateral deposited-collateral),
-      total-payout: (default-to default-total-payout total-payout),
-      minimum-stake: (default-to default-minimum-stake minimum-stake),
-      cycle-count: (default-to default-cycle-count cycle-count),
-      min-collateral: (default-to default-min-collateral min-collateral),
-      lock-collateral-period: (default-to default-lock-collateral-period lock-collateral-period),
-      total-required-stake: (default-to default-total-required-stake total-required-stake),
-    })
-))
+        (current-cycle-info (get-current-cycle stacker))
+        (default-deposited-collateral (get deposited-collateral current-cycle-info))
+        (default-total-payout (get total-payout current-cycle-info))
+        (default-minimum-stake (get minimum-stake current-cycle-info))
+        (default-cycle-count (get cycle-count current-cycle-info))
+        (default-min-collateral (get min-collateral current-cycle-info))
+        (default-lock-collateral-period (get lock-collateral-period current-cycle-info))
+        (default-total-required-stake (get total-required-stake current-cycle-info)))
+  
+    (map-set stacking-offer-details 
+      {cycle: (var-get current-cycle)}
+      {
+        deposited-collateral: (default-to default-deposited-collateral deposited-collateral),
+        total-payout: (default-to default-total-payout total-payout),
+        minimum-stake: (default-to default-minimum-stake minimum-stake),
+        cycle-count: (default-to default-cycle-count cycle-count),
+        min-collateral: (default-to default-min-collateral min-collateral),
+        lock-collateral-period: (default-to default-lock-collateral-period lock-collateral-period),
+        total-required-stake: (default-to default-total-required-stake total-required-stake),})))
+    
 
-(define-private (set-current-deposit (amount uint)) 
-  (set-current-cycle (some amount)))
 
-(define-private (increase-deposit (amount uint)) 
+(define-private (set-current-deposit (stacker principal) (amount uint))
+  (set-current-cycle stacker (some amount)))
+
+(define-private (increase-deposit (stacker principal) (amount uint)) 
   (let
-    ((new-collateral-amount (+ (get-current-deposit) amount))
-    (promised-rewards (get total-payout (get-current-cycle)))
-    (is-promise-fulfilled (>= new-collateral-amount promised-rewards)))
+      ((new-collateral-amount (+ (get-current-deposit tx-sender) amount))
+       (promised-rewards (get total-payout (get-current-cycle tx-sender)))
+       (is-promise-fulfilled (>= new-collateral-amount promised-rewards)))
     (set-current-deposit new-collateral-amount)
-    (ft-mint? decent-delegate-reputation u1 stacker)
-    ))
+    (ft-mint? decent-delegate-reputation u1 stacker)))
+    
 
-(define-private (get-current-cycle) 
+(define-private (get-current-cycle (stacker principal)) 
   (unwrap-panic (map-get? stacking-offer-details {cycle: (var-get current-cycle)})))
 
-(define-read-only (has-delegate-locked-collateral) 
-  (let ((min-collateral (get min-collateral (get-current-cycle)))) 
-  (>= (get deposited-collateral (get-current-cycle)) min-collateral )))
+(define-read-only (has-delegate-locked-collateral (stacker uint)) 
+  (let ((min-collateral (get min-collateral (get-current-cycle stacker)))) 
+    (>= (get deposited-collateral (get-current-cycle stacker)) min-collateral)))
 
-(define-private (get-stacker-info (delegator principal)) 
+(define-public (get-stacker-info (delegator principal)) 
   ;; (contract-call? 'ST000000000000000000002AMW42H.pox get-stacker-info delegator))
   (ok true))
 
 
-(define-read-only (calculate-current-reward (personal-stake uint) (total-stake uint)) 
+(define-read-only (calculate-current-reward (stacker uint) (personal-stake uint) (total-stake uint)) 
   (let (
-    (current-cycle-info (get-current-cycle))
-    (total-payout (get total-payout current-cycle-info))
-    (current-funds (get deposited-collateral current-cycle-info))
-    (rewards-if-patient (/ (* personal-stake total-payout) total-stake))
+        (current-cycle-info (get-current-cycle stacker))
+        (total-payout (get total-payout current-cycle-info))
+        (current-funds (get deposited-collateral current-cycle-info))
+        (rewards-if-patient (/ (* personal-stake total-payout) total-stake))
     ;; if you want you could get your cut but 
     ;; you won't be eligible to get the rest of the rewards
     ;; they would be reserved for the stacker
-    (rewards-if-impatient (/ (* personal-stake current-funds) total-stake))
-    ) 
+        (rewards-if-impatient (/ (* personal-stake current-funds) total-stake)))
+    
     (ok {rewards-if-patient: rewards-if-patient, rewards-if-impatient: rewards-if-impatient})))
 
-(define-public (redeem-reward (delegator principal)) 
+(define-public (redeem-reward (delegator principal))
   ;; if within the cycle when not enough funds 
   ;; have been deposited and still in the pox cycle
   ;; only the delegator themselves might request to redeem
   ;; if the cycle ended the delegate might call this to payout
   ;; the delegator
   (ok true))
-
-;;
-
-;; payout
-;; by friedget muffke
-;;
-;; (define-private (stx-transfer (details {stacker: principal, part-ustx: uint}))
-;;   (stx-transfer? (get part-ustx details) contract-address (get stacker details)))
-
-;; (define-private (check-err (result (response bool uint)) (prior (response bool uint)))
-;;   (match prior
-;;     ok-value result
-;;     err-value  (err err-value)))
-
-;; (define-private (calc-parts (member {stacker: principal, amount-ustx: uint}) 
-;;             (context {payout-ustx: uint, stacked-ustx: uint, result: (list 750 {stacker: principal, part-ustx: uint})}))
-;;   (let (
-;;     (amount-ustx (get amount-ustx member)) 
-;;     (payout-ustx (get payout-ustx context)) 
-;;     (stacked-ustx (get stacked-ustx context)))          
-;;     (let (
-;;       (payout-details {stacker: (get stacker member), part-ustx: (/ (* amount-ustx payout-ustx) stacked-ustx)}))
-;;       {payout-ustx: payout-ustx, stacked-ustx: stacked-ustx,
-;;         result: (unwrap-panic (as-max-len? (append (get result context) payout-details) u750))})))
-
-
-;; (define-public (payout (payout-ustx uint) (stacked-ustx uint) (members (list 750 (tuple (stacker principal) (amount-ustx uint)))))
-;;   (let (
-;;     (member-parts 
-;;       (get result 
-;;         (fold calc-parts members {payout-ustx: payout-ustx, stacked-ustx: stacked-ustx, result: (list)}))))
-;;     (fold check-err
-;;       (map stx-transfer member-parts) (ok true))))
