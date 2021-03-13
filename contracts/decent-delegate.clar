@@ -325,7 +325,7 @@
 
             {cycle: cycle-id} 
 
-            {locked-amount: new-total-locked-amount, is-stacked: reached-goal})
+            {locked-amount: new-total-locked-amount, is-stacked: did-stack})
             (map-set 
               delegators 
               { delegator: tx-sender, cycle: cycle-id } 
