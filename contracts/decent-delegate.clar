@@ -54,6 +54,7 @@
 (define-constant ERROR-better-luck-next-time u1012)
 (define-constant ERROR-we-need-a-lot-but-not-THAT-much u1013)
 (define-constant ERROR-requires-padding u1014)
+(define-constant ERROR-LOCKED-have-a-little-faith u1015)
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
 
@@ -85,7 +86,7 @@
     pox-address: {version: (buff 1), hashbytes: (buff 20),},
   })
 
-(define-map cycles-locked-amounts {cycle: uint} {locked-amount: uint})
+(define-map cycle-stx-vault {cycle: uint} {locked-amount: uint, is-stacked: bool})
 
 
 (define-map delegators 
@@ -123,7 +124,7 @@
 
     (asserts! (deposit collateral)
       (err ERROR-wtf-stacks!!!))
-    (map-set cycles-locked-amounts {cycle: next-cycle} {locked-amount: u0})
+    (map-set cycle-stx-vault {cycle: next-cycle} {locked-amount: u0, is-stacked: false})
     (ok (map-set stacking-offer-details 
       {
         cycle: next-cycle,
@@ -142,7 +143,7 @@
   )
 
 (define-read-only (get-locked-amount (cycle-id uint)) 
-  (map-get? cycles-locked-amounts {cycle: cycle-id}))
+  (map-get? cycle-stx-vault {cycle: cycle-id}))
 
 (define-public (deposit-to-collateral (amount uint)) 
   (let 
@@ -206,6 +207,29 @@
 (define-read-only (get-delegator-info (cycle-id uint) (delegator principal)) 
   (map-get? delegators {cycle: cycle-id, delegator: delegator}))
 
+(define-read-only (is-cycle-expired (cycle-id uint)) 
+  (let 
+    ((cycle-info (get-cycle cycle-id))
+    (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
+    (lock-collateral-period (get lock-collateral-period cycle-info))
+    (lock-started-at (get lock-started-at cycle-info))
+    (total-required-stake (get total-required-stake cycle-info))
+    (collateral-lock-expired (>= block-height (+ lock-started-at lock-collateral-period)))
+    (cycle-locked-amount (get-locked-amount cycle-id)))
+  (and collateral-lock-expired (< (get locked-amount (unwrap-panic cycle-locked-amount)) total-required-stake)))
+)
+
+(define-public (withdraw-stake (cycle-id uint))
+  (let ((stake (get-delegator-info cycle-id tx-sender))
+        (stake-exists (is-some stake)))
+    (asserts! (is-not-called-by-another-contract)
+      (err ERROR-ummm-this-is-a-PEOPLE-contract))
+    (asserts! stake-exists
+      (err ERROR-i-have-never-met-this-man-in-my-life))
+    (asserts! (is-cycle-expired cycle-id)
+      (err ERROR-LOCKED-have-a-little-faith))
+    (stx-transfer? (get locked-amount (unwrap-panic stake)) contract-address tx-sender)))
+
 (define-public (delegate (amount uint) (sacrifice-stx-for-padding bool)) 
     (let 
       ((cycle-id (get-next-cycle-id))
@@ -230,8 +254,6 @@
       (asserts! (>= balance amount) 
         (err ERROR-you-poor-lol))
 
-      ;; (asserts! is-new-delegator 
-      ;;   (err ERROR-didnt-we-just-go-through-this-the-other-day))
       (let 
 
         (
@@ -285,36 +307,37 @@
 
         (let
           ((new-total-locked-amount (+ locked-amount max-possible-addition))
-          (would-reach-goal (>= new-total-locked-amount total-required-stake)))
-        (map-set 
-
-          cycles-locked-amounts
-
-          {cycle: cycle-id} 
-
-          {locked-amount: new-total-locked-amount})
-
-          (map-set 
-            delegators 
-            { delegator: tx-sender, cycle: cycle-id } 
-            { did-withdraw-rewards: false, locked-amount: delegator-sum-stake })
-          (if would-reach-goal
-            (asserts! 
-              (is-ok 
+          (reached-goal (>= new-total-locked-amount total-required-stake))
+          (did-stack 
+            (if reached-goal
+              (is-ok
                 (contract-call? 
                   'ST000000000000000000002AMW42H.pox 
                   stack-stx new-total-locked-amount pox-address burn-block-height cycle-count
-                  ))
-              (err ERROR-wtf-stacks!!!))
-          false)
-          (ok
-          {
-            cycle: cycle-id,
-            delegator: tx-sender,
-            delegated-amount: delegator-sum-stake,
-            time-until-cycle-expiry: (- lock-collateral-period block-height)
-          } 
-          )))))
+                  )) 
+              false)))
+          (asserts! 
+            (or (and reached-goal did-stack) (not reached-goal))
+          (err ERROR-wtf-stacks!!!))
+          (map-set 
+
+            cycle-stx-vault
+
+            {cycle: cycle-id} 
+
+            {locked-amount: new-total-locked-amount, is-stacked: reached-goal})
+            (map-set 
+              delegators 
+              { delegator: tx-sender, cycle: cycle-id } 
+              { did-withdraw-rewards: false, locked-amount: delegator-sum-stake })
+            (ok
+              {
+                cycle: cycle-id,
+                delegator: tx-sender,
+                delegated-amount: delegator-sum-stake,
+                time-until-cycle-expiry: (- lock-collateral-period block-height)
+              } 
+            )))))
 
 
 
