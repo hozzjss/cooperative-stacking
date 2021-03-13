@@ -30,7 +30,7 @@ describe("decent delegate contract test suite", () => {
             "u1",
             "u1000",
             "u1000000000000",
-            "{hash: 0x0000000000000000000000000000000000000000, version: 0x00}",
+            "{hashbytes: 0x0000000000000000000000000000000000000000, version: 0x00}",
           ]
         },
       })

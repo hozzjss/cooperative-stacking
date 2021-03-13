@@ -31,9 +31,9 @@
 (define-constant ERROR-you-are-not-welcome-here u1010)
 (define-constant ERROR-this-number-is-a-disgrace!! u1011)
 
-;; replace this with your public key hash pay to public key hash p2pkh, i learnt that yesterday
+;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
 
-;; (define-constant pox-address {hash: 0x0000000000000000000000000000000000000000, version: 0x00})
+;; (define-constant pox-address {hashbytes: 0x0000000000000000000000000000000000000000, version: 0x00})
 
 (define-constant contract-address (as-contract tx-sender))
 (define-constant stacker tx-sender)
@@ -58,7 +58,7 @@
     lock-collateral-period: uint,
     lock-started-at: uint,
     total-required-stake: uint,
-    pox-address: {version: (buff 1), hash: (buff 20),},
+    pox-address: {version: (buff 1), hashbytes: (buff 20),},
   })
 
 (define-map cycles-locked-amounts {cycle: uint} {locked-amount: uint})
@@ -80,7 +80,7 @@
     (collateral uint)
     (lock-collateral-period uint)
     (total-required-stake uint)
-    (pox-address {hash: (buff 20), version: (buff 1)}))
+    (pox-address {hashbytes: (buff 20), version: (buff 1)}))
 
   (let
     ((balance (stx-get-balance tx-sender))
@@ -189,7 +189,7 @@
       (pox-address (get pox-address cycle-info))
       (cycle-count (get cycle-count cycle-info))
       (minimum-stake (get minimum-stake cycle-info))
-      (until-block-height (get-cycle-start (+ cycle-id u1)))
+      (until-block-ht (get-cycle-start (+ cycle-id u1)))
       (is-new-delegator (is-none (map-get? delegators {cycle: cycle-id, delegator: tx-sender})))
       (cycle-locked-amount (get locked-amount (unwrap-panic (map-get? cycles-locked-amounts {cycle: cycle-id}))))
       
@@ -208,10 +208,7 @@
         'ST000000000000000000002AMW42H.pox 
         delegate-stx 
           amount
-          (as-contract tx-sender)
-          until-block-ht 
-          pox-address)
-      
+          (as-contract tx-sender))
       (contract-call? 
         'ST000000000000000000002AMW42H.pox 
         delegate-stack-stx
@@ -219,8 +216,6 @@
           amount
           pox-address
           burn-block-height
-          (as-contract tx-sender)
-          until-block-ht
           cycle-count)
       (map-set cycles-locked-amounts {cycle: cycle-id} {locked-amount: (+ cycle-locked-amount amount)})
       (ok (map-set delegators {
@@ -245,7 +240,7 @@
   (is-ok (stx-transfer? amount tx-sender contract-address)))
 
 (define-read-only (get-current-deposit) 
-  (get deposited-collateral (get-current-cycle-info stacker)))
+  (get deposited-collateral (get-next-cycle-info stacker)))
 
 
 (define-private (set-current-deposit (amount uint))
@@ -253,7 +248,7 @@
 
 (define-private (increase-deposit (amount uint)) 
   (let ((new-collateral-amount (+ (get-current-deposit tx-sender) amount))
-        (cycle-info (get-current-cycle-info tx-sender))
+        (cycle-info (get-next-cycle-info tx-sender))
         (promised-rewards (get pledged-payout cycle-info))
         (cycle-count (get cycle-count cycle-info))
         (cycle-expired (unwrap-panic (is-pool-expired)))
@@ -278,14 +273,11 @@
       (ft-transfer? decent-delegate-reputation u1 contract-address stacker) 
       (ok true))))    
 
-(define-read-only (get-current-cycle-info) 
+(define-read-only (get-next-cycle-info) 
   (get-cycle (get-next-cycle-id)))
 
 (define-read-only (get-next-cycle-id)
-  (let ((fixed-bht (+ prepare-cycle-length burn-block-height))
-        (pox-age (- fixed-bht first-burnchain-block-height))
-        (next-cycle (/ pox-age reward-cycle-length)))
-      next-cycle))  
+  (+ (burn-height-to-reward-cycle burn-block-height) u1))
 
 
 (define-read-only (get-next-pox-start) 
@@ -297,6 +289,10 @@
     (let ((fixed-height (- first-burnchain-block-height prepare-cycle-length))
         (cycle-start (+ fixed-height (* cycle u2100))))
       cycle-start)))
+
+(define-private (burn-height-to-reward-cycle (height uint))
+    (/ (- height first-burnchain-block-height) reward-cycle-length))
+
 
 (define-read-only (is-creator) 
   (is-eq stacker tx-sender))
@@ -326,7 +322,7 @@
 ;; I know I know
 (define-private (set-deposit
                   (deposited-collateral  uint))
-  (let ((current-cycle-info (get-current-cycle-info stacker)))
+  (let ((current-cycle-info (get-next-cycle-info stacker)))
 
     (map-set stacking-offer-details 
       {cycle: (get-next-cycle-id)}
