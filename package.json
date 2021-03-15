@@ -29,6 +29,8 @@
     "@stacks/network": "^1.2.2",
     "@stacks/stacking": "^1.3.2",
     "@stacks/transactions": "^1.3.0",
-    "bitcoinjs-lib": "^5.2.0"
+    "bitcoinjs-lib": "^5.2.0",
+    "bn.js": "^5.2.0",
+    "dotenv": "^8.2.0"
   }
 }

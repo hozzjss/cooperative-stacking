@@ -318,7 +318,11 @@
               false)))
           (asserts! 
             (or (and reached-goal did-stack) (not reached-goal))
-          (err ERROR-wtf-stacks!!!))
+          (err {
+                  code: ERROR-wtf-stacks!!!, 
+                  message: "PoX contract stack-stx failed", 
+                  new-total-locked-amount: new-total-locked-amount
+                  }))
           (map-set 
 
             cycle-stx-vault
