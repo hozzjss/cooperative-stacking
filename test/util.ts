@@ -20,11 +20,13 @@ import BN from "bn.js";
 import {config} from 'dotenv'
 config();
 
+const contractName = "cautious-amber-tiglon"
+
 // console.log(address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash.toString('hex'))
 const createStackingPool = async () => {
   const tx =await makeContractCall({
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
-    contractName: "administrative-chocolate-fish",
+    contractName,
     functionArgs: [
       uintCV(15000000000),
       uintCV(100000000),
@@ -59,7 +61,7 @@ const createStackingPool = async () => {
 const delegate = async () => {
   const tx =await makeContractCall({
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
-    contractName: "administrative-chocolate-fish",
+    contractName,
     functionArgs: [
       uintCV(95e12),
       trueCV()
@@ -89,7 +91,7 @@ const allowContractCaller = async () => {
     contractName: 'pox',
     functionName: 'allow-contract-caller',
     functionArgs: [
-      contractPrincipalCV("ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7", "administrative-chocolate-fish"),
+      contractPrincipalCV("ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7", contractName),
       noneCV()
     ],
     senderKey: process.env.KEY as string,
@@ -100,5 +102,6 @@ const allowContractCaller = async () => {
   console.log(result);
 }
 // allowContractCaller();
-delegate()
+// delegate()
+createStackingPool();
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));

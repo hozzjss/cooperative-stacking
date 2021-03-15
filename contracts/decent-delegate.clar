@@ -312,14 +312,15 @@
         (let
           ((new-total-locked-amount (+ locked-amount max-possible-addition))
           (reached-goal (>= new-total-locked-amount total-required-stake))
-          (did-stack 
+          (stacking-response
             (if reached-goal
-              (is-ok 
+              (as-contract 
                 (contract-call? 
                   'ST000000000000000000002AMW42H.pox 
                   stack-stx new-total-locked-amount pox-address burn-block-height cycle-count
                   )) 
-              false)))
+              (err none)))
+          (did-stack (is-ok stacking-response)))
           (asserts! 
             (or (and reached-goal did-stack) (not reached-goal))
           (err {
