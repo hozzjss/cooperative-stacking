@@ -6,9 +6,6 @@
 ;; a delegate gets only 12 chances of being a decent person
 
 
-;; funk this 
-;; funk this
-;; funk THIS
 ;; (asserts! 
 ;;   (is-ok 
 ;;     (contract-call? 'ST000000000000000000002AMW42H.pox delegate-stx amount contract-address none none))
@@ -18,7 +15,7 @@
 ;;     (contract-call? 'ST000000000000000000002AMW42H.pox 
 ;;       delegate-stack-stx tx-sender amount pox-address burn-block-height cycle-count))
 ;;   (err ERROR-wtf-stacks!!!))
-;; I said funk this and now the contract would stack itself
+;; now the contract would stack itself
 ;; instead of pox complications
 ;; this way if people wanted to take their funds after the cycle ends
 ;; or the cycle didn't reach its goal and the collateral-lock-period
