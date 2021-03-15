@@ -102,6 +102,6 @@ const allowContractCaller = async () => {
   console.log(result);
 }
 // allowContractCaller();
-// delegate()
-createStackingPool();
+delegate()
+// createStackingPool();
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));

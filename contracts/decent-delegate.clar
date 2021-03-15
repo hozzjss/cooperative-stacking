@@ -6,9 +6,9 @@
 ;; a delegate gets only 12 chances of being a decent person
 
 
-;; fuck this 
-;; fuck this
-;; FUCK THIS
+;; funk this 
+;; funk this
+;; funk THIS
 ;; (asserts! 
 ;;   (is-ok 
 ;;     (contract-call? 'ST000000000000000000002AMW42H.pox delegate-stx amount contract-address none none))
@@ -18,7 +18,7 @@
 ;;     (contract-call? 'ST000000000000000000002AMW42H.pox 
 ;;       delegate-stack-stx tx-sender amount pox-address burn-block-height cycle-count))
 ;;   (err ERROR-wtf-stacks!!!))
-;; I said fuck this and now the contract would stack itself
+;; I said funk this and now the contract would stack itself
 ;; instead of pox complications
 ;; this way if people wanted to take their funds after the cycle ends
 ;; or the cycle didn't reach its goal and the collateral-lock-period
@@ -39,22 +39,22 @@
 (define-constant first-burnchain-block-height u1931620)
 (define-constant prepare-cycle-length u10)
 
-(define-constant ERROR-ummm-this-is-a-PEOPLE-contract u1000)
-(define-constant ERROR-you-poor-lol u1001)
-(define-constant ERROR-this-aint-a-donation-box u1002)
-(define-constant ERROR-wtf-stacks!!! u1003)
-(define-constant ERROR-not-my-president! u1004)
-(define-constant ERROR-didnt-we-just-go-through-this-the-other-day u1005)
-(define-constant ERROR-only-current-cycle-bro! u1006)
-(define-constant ERROR-i-have-never-met-this-man-in-my-life u1007)
-(define-constant ERROR-you-cant-get-any-awesomer u1008)
-(define-constant ERROR-you-had-12-chances-wtf! u1009)
-(define-constant ERROR-you-are-not-welcome-here u1010)
-(define-constant ERROR-this-number-is-a-disgrace!! u1011)
-(define-constant ERROR-better-luck-next-time u1012)
-(define-constant ERROR-we-need-a-lot-but-not-THAT-much u1013)
-(define-constant ERROR-requires-padding u1014)
-(define-constant ERROR-LOCKED-have-a-little-faith u1015)
+(define-constant ERROR-ummm-this-is-a-PEOPLE-contract 1000)
+(define-constant ERROR-you-poor-lol 1001)
+(define-constant ERROR-this-aint-a-donation-box 1002)
+(define-constant ERROR-wtf-stacks!!! 1003)
+(define-constant ERROR-not-my-president! 1004)
+(define-constant ERROR-didnt-we-just-go-through-this-the-other-day 1005)
+(define-constant ERROR-only-current-cycle-bro! 1006)
+(define-constant ERROR-i-have-never-met-this-man-in-my-life 1007)
+(define-constant ERROR-you-cant-get-any-awesomer 1008)
+(define-constant ERROR-you-had-12-chances-wtf! 1009)
+(define-constant ERROR-you-are-not-welcome-here 1010)
+(define-constant ERROR-this-number-is-a-disgrace!! 1011)
+(define-constant ERROR-better-luck-next-time 1012)
+(define-constant ERROR-we-need-a-lot-but-not-THAT-much 1013)
+(define-constant ERROR-requires-padding 1014)
+(define-constant ERROR-LOCKED-have-a-little-faith 1015)
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
 
@@ -323,10 +323,10 @@
           (did-stack (is-ok stacking-response)))
           (asserts! 
             (or (and reached-goal did-stack) (not reached-goal))
-          (err {
-                  code: ERROR-wtf-stacks!!!, 
-                  message: "PoX contract stack-stx failed", 
-                  }))
+              (err {
+                code: (unwrap-err-panic stacking-response), 
+                message: "PoX contract stack-stx failed", 
+                }))
           (map-set 
 
             cycle-stx-vault
@@ -448,4 +448,3 @@
       (merge 
         current-cycle-info 
         { deposited-collateral: deposited-collateral,}))))
-    
