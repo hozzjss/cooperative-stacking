@@ -248,11 +248,11 @@
       
       (balance (stx-get-balance tx-sender)))
       (asserts! collateral-lock-valid
-        (err ERROR-better-luck-next-time))
+        (err {code: ERROR-better-luck-next-time, message: ""}))
       (asserts! (is-some cycle-locked-amount) 
-        (err ERROR-i-have-never-met-this-man-in-my-life))            
+        (err {code: ERROR-i-have-never-met-this-man-in-my-life, message: ""}))
       (asserts! (>= balance amount) 
-        (err ERROR-you-poor-lol))
+        (err {code: ERROR-you-poor-lol, message: ""}))
 
       (let 
 
@@ -293,7 +293,7 @@
 
             (and requires-padding can-safely-add-padding)) 
 
-          (err ERROR-requires-padding))
+          (err {code: ERROR-requires-padding, message: ""}))
 
 
         (asserts!
@@ -303,14 +303,18 @@
 
             (stx-transfer? max-possible-addition tx-sender contract-address)) 
 
-        (err ERROR-wtf-stacks!!!))
+        (err 
+          {
+            code: ERROR-wtf-stacks!!!,
+            message: "Couldn't transfer funds from delegator" 
+          }))
 
         (let
           ((new-total-locked-amount (+ locked-amount max-possible-addition))
           (reached-goal (>= new-total-locked-amount total-required-stake))
           (did-stack 
             (if reached-goal
-              (is-ok
+              (is-ok 
                 (contract-call? 
                   'ST000000000000000000002AMW42H.pox 
                   stack-stx new-total-locked-amount pox-address burn-block-height cycle-count
@@ -321,7 +325,6 @@
           (err {
                   code: ERROR-wtf-stacks!!!, 
                   message: "PoX contract stack-stx failed", 
-                  new-total-locked-amount: new-total-locked-amount
                   }))
           (map-set 
 
@@ -441,15 +444,7 @@
 
     (map-set stacking-offer-details 
       {cycle: (get-next-cycle-id)}
-      {
-        deposited-collateral: deposited-collateral,
-        pledged-payout: (get pledged-payout current-cycle-info),
-        minimum-delegator-stake: (get minimum-delegator-stake current-cycle-info),
-        cycle-count: (get cycle-count current-cycle-info),
-        collateral: (get collateral current-cycle-info),
-        lock-collateral-period: (get lock-collateral-period current-cycle-info),
-        lock-started-at: (get total-required-stake current-cycle-info),
-        total-required-stake: (get lock-started-at current-cycle-info),
-        pox-address: (get pox-address current-cycle-info),
-      })))
+      (merge 
+        current-cycle-info 
+        { deposited-collateral: deposited-collateral,}))))
     
