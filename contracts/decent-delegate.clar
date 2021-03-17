@@ -522,21 +522,20 @@
 
 ;; stolen from jude
 
-(define-public (get-name)
+(define-read-only (get-name)
     (ok "Stacked-STX"))
 
-(define-public (get-symbol)
+(define-read-only (get-symbol)
     (ok "DDX"))
 
-(define-public (get-decimals)
+(define-read-only (get-decimals)
     (ok u6))
 
-(define-public (get-balance-of (user principal))
+(define-read-only (get-balance-of (user principal))
     (ok (ft-get-balance stacked-stx user)))
 
-(define-public (get-total-supply)
+(define-read-only (get-total-supply)
     (ok (stx-get-balance (as-contract tx-sender))))
 
-(define-public (get-token-uri)
+(define-read-only (get-token-uri)
     (ok none))
-    
