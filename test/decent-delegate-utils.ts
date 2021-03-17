@@ -3,26 +3,46 @@ import {
   broadcastTransaction,
   bufferCV,
   callReadOnlyFunction,
+  compressPublicKey,
   contractPrincipalCV,
+  createStacksPrivateKey,
   createSTXPostCondition,
   cvToJSON,
   FungibleConditionCode,
+  getAddressFromPrivateKey,
+  getAddressFromPublicKey,
+  getPublicKey,
   makeContractCall,
   noneCV,
   PostConditionMode,
   standardPrincipalCV,
+  TransactionVersion,
   trueCV,
   tupleCV,
   uintCV,
 } from "@stacks/transactions";
-import {address} from 'bitcoinjs-lib'
+import * as bitcoin from 'bitcoinjs-lib'
 import BN from "bn.js";
 import {config} from 'dotenv'
 config();
 
-const contractName = "cautious-amber-tiglon"
 
-// console.log(address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash.toString('hex'))
+const contractName = "cautious-amber-tiglon"
+const testContractName = "elaborate-indigo-bird"
+
+const privateKey = createStacksPrivateKey(process.env.KEY as string);
+const publicKey = getPublicKey(privateKey);
+// const address = getAddressFromPrivateKey(process.env.KEY as string, TransactionVersion.Mainnet);
+const pubKey = compressPublicKey(publicKey.data);
+
+const stxAddress = getAddressFromPublicKey(pubKey.data);
+const bitcoinAddress = bitcoin.payments.p2pkh({pubkey: pubKey.data}).address
+
+// console.log(stxAddress, bitcoinAddress)
+
+
+
+console.log(bitcoin.address.fromBase58Check(bitcoinAddress as string).hash.toString('hex'))
 const createStackingPool = async () => {
   const tx =await makeContractCall({
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
@@ -35,7 +55,7 @@ const createStackingPool = async () => {
       uintCV(1000),
       uintCV(90e12),
       tupleCV({
-        hashbytes: bufferCV(address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash),
+        hashbytes: bufferCV(bitcoin.address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash),
         version: bufferCV(Buffer.alloc(1, 111))
       })
       // standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"),
@@ -102,6 +122,6 @@ const allowContractCaller = async () => {
   console.log(result);
 }
 // allowContractCaller();
-delegate()
+// delegate()
 // createStackingPool();
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));

@@ -52,6 +52,7 @@
 (define-constant ERROR-we-need-a-lot-but-not-THAT-much 1013)
 (define-constant ERROR-requires-padding 1014)
 (define-constant ERROR-LOCKED-have-a-little-faith 1015)
+(define-constant ERROR-UNAUTHORIZED 1016)
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
 
@@ -90,9 +91,13 @@
   {delegator: principal, cycle: uint} 
   {
     did-withdraw-rewards: bool,
-    locked-amount: uint,
   })
 
+(define-map delegator-stx-vault 
+  {delegator: principal} 
+  {
+    locked-amount: uint,
+  })
 
 (define-public 
   (create-decent-pool
@@ -169,8 +174,8 @@
 (define-public (redeem-reward (cycle uint))
   ;; if within the cycle when not enough funds 
   (let ((delegator tx-sender)
-        (delegator-info (unwrap-panic (map-get? delegators {cycle: cycle, delegator: delegator})))
-        (locked-amount (get locked-amount delegator-info))
+        (delegator-vault-info (unwrap-panic (map-get? delegator-stx-vault {delegator: delegator})))
+        (locked-amount (get locked-amount delegator-vault-info))
         (cycle-info (get-cycle cycle))
         (total-required-stake (get total-required-stake cycle-info))
         (was-patient (unwrap-panic (is-pool-expired cycle)))
@@ -189,7 +194,6 @@
       }
       {
         did-withdraw-rewards: true,
-        locked-amount: locked-amount,
       })
     ;; have been deposited and still in the pox cycle
     ;; only the delegator themselves might request to redeem
@@ -217,15 +221,22 @@
 )
 
 (define-public (withdraw-stake (cycle-id uint))
-  (let ((stake (get-delegator-info cycle-id tx-sender))
-        (stake-exists (is-some stake)))
+  (let ((stake-info (map-get? delegator-stx-vault {delegator: tx-sender}))
+    (delegator-info (get-delegator-info cycle-id tx-sender))
+        (stake-exists (is-some stake-info)))
     (asserts! (is-not-called-by-another-contract)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
     (asserts! stake-exists
       (err ERROR-i-have-never-met-this-man-in-my-life))
     (asserts! (is-cycle-expired cycle-id)
       (err ERROR-LOCKED-have-a-little-faith))
-    (stx-transfer? (get locked-amount (unwrap-panic stake)) contract-address tx-sender)))
+    (asserts!
+      (let ((stake (get locked-amount (unwrap-panic stake-info))))
+        (and
+          (is-ok (stx-transfer? stake contract-address tx-sender))
+          (is-ok (ft-burn? stacked-stx stake tx-sender))))
+    (err ERROR-wtf-stacks!!!))
+    (ok true)))
 
 (define-public (delegate (amount uint) (sacrifice-stx-for-padding bool)) 
     (let 
@@ -240,6 +251,7 @@
       (collateral-lock-valid (< block-height (+ lock-started-at lock-collateral-period)))
       ;; (until-block-ht (get-cycle-start (+ cycle-id u1)))
       (delegator-info (get-delegator-info cycle-id tx-sender))
+      (stake (map-get? delegator-stx-vault {delegator: tx-sender}))
       (is-new-delegator (is-none delegator-info))
       (cycle-locked-amount (get-locked-amount cycle-id))
       
@@ -276,7 +288,7 @@
 
                   max-possible-addition
 
-                  (+ max-possible-addition (get locked-amount (unwrap-panic delegator-info)))))
+                  (+ max-possible-addition (get locked-amount (unwrap-panic stake)))))
 
             (requires-padding (>= max-possible-addition minimum-delegator-stake)))
         ;; stacker would then append padding and start stacking
@@ -306,17 +318,32 @@
             message: "Couldn't transfer funds from delegator" 
           }))
 
+        (asserts!
+
+
+          (is-ok 
+            (ft-mint? stacked-stx max-possible-addition tx-sender))
+
+          (err 
+            {
+              code: ERROR-wtf-stacks!!!,
+              message: "Couldn't mint stacked-stx to delegator" 
+            }))
+
         (let
           ((new-total-locked-amount (+ locked-amount max-possible-addition))
           (reached-goal (>= new-total-locked-amount total-required-stake))
           (stacking-response
             (if reached-goal
+              ;; just for testing since clarity vscode analysis
+              ;; is upset with contract calls
+              ;; (ok true)
               (as-contract 
                 (contract-call? 
                   'ST000000000000000000002AMW42H.pox 
                   stack-stx new-total-locked-amount pox-address burn-block-height cycle-count
                   )) 
-              (err none)))
+              (err ERROR-wtf-stacks!!!)))
           (did-stack (is-ok stacking-response)))
           (asserts! 
             (or (and reached-goal did-stack) (not reached-goal))
@@ -334,7 +361,11 @@
             (map-set 
               delegators 
               { delegator: tx-sender, cycle: cycle-id } 
-              { did-withdraw-rewards: false, locked-amount: delegator-sum-stake })
+              { did-withdraw-rewards: false, })
+            (map-set 
+              delegator-stx-vault
+              { delegator: tx-sender } 
+              { locked-amount: delegator-sum-stake, })
             (ok
               {
                 cycle: cycle-id,
@@ -380,8 +411,10 @@
           (err ERROR-you-cant-get-any-awesomer))
         (asserts! (and no-more-rep (is-eq reputation u0)) 
           (err ERROR-you-had-12-chances-wtf!))
-        (award-reputation))
-      (ok true))))
+        (asserts! (is-ok (award-reputation))
+          (err ERROR-wtf-stacks!!!))
+        (ok true))
+      (err ERROR-you-poor-lol))))
 
 (define-private (award-reputation) 
   (let ((supply (ft-get-balance decent-delegate-reputation contract-address)))
@@ -445,3 +478,65 @@
       (merge 
         current-cycle-info 
         { deposited-collateral: deposited-collateral,}))))
+
+
+;; This should make stacked stx liquid
+
+(define-fungible-token stacked-stx)
+
+
+(define-public (transfer (amount uint) (from principal) (to principal))
+    (let
+      ;; do I owe you money?
+      ((sender-vault (map-get? delegator-stx-vault {delegator: from}))
+      ;; is this a new member of our crew?
+        (recepient-vault (map-get? delegator-stx-vault {delegator: to})))
+      ;; I don't owe you anything
+      (asserts! (is-some sender-vault) 
+        (err ERROR-i-have-never-met-this-man-in-my-life))
+      ;; IMPOSTER!!!
+      (asserts! (is-eq from tx-sender)
+          (err ERROR-UNAUTHORIZED))
+      ;; here are your frozen tokens, have fun!
+      (asserts! (is-ok (ft-transfer? stacked-stx amount from to)) 
+        (err ERROR-you-poor-lol))
+      ;; now let's do some accounting
+      ;; we are gonna transfer this much from your account
+      ;; to your friend's account
+      (let ((sender-balance (get locked-amount (unwrap-panic sender-vault)))
+            ;; weird no?
+            ;; if you find a better way let me know right away!
+            (recepient-balance (get locked-amount (unwrap-panic (default-to recepient-vault (some (some {locked-amount: u0}))))))
+            ;; let's take the money from here
+            (sender-new-balance (- sender-balance amount))
+            ;; aaaand put it there!
+            (recepient-new-balance (+ recepient-balance amount)))
+          ;; and submit that to our nice little ledger
+          (map-set delegator-stx-vault {delegator: from} {locked-amount: sender-new-balance})
+          (map-set delegator-stx-vault {delegator: to} {locked-amount: recepient-new-balance})
+          (ok true)
+        )
+        
+    )
+)
+
+;; stolen from jude
+
+(define-public (get-name)
+    (ok "Stacked-STX"))
+
+(define-public (get-symbol)
+    (ok "DDX"))
+
+(define-public (get-decimals)
+    (ok u6))
+
+(define-public (get-balance-of (user principal))
+    (ok (ft-get-balance stacked-stx user)))
+
+(define-public (get-total-supply)
+    (ok (stx-get-balance (as-contract tx-sender))))
+
+(define-public (get-token-uri)
+    (ok none))
+    
