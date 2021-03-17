@@ -258,6 +258,8 @@
       
       (balance (stx-get-balance tx-sender)))
 
+      (asserts! (>= amount minimum-delegator-stake) 
+        (err {code: ERROR-you-poor-lol, message: ""}))
       ;; you can't delegate your stx if the cycle expired after not
       ;; completing the amount required to start stacking
       (asserts! collateral-lock-valid
@@ -276,9 +278,9 @@
             (can-safely-add-padding (or sacrifice-stx-for-padding (not is-new-delegator)))
 
             ;; Reach goal after getting the amount of stacks required before starting
+            (locked-amount (get locked-amount (unwrap-panic cycle-locked-amount)))
             (has-not-reached-goal (< locked-amount total-required-stake))
             
-            (locked-amount (get locked-amount (unwrap-panic cycle-locked-amount)))
 
             ;; How much stx are required to fulfill stacking
             (remaining-required-stake (- total-required-stake locked-amount))
@@ -350,7 +352,7 @@
 
         (let
           ((new-total-locked-amount (+ locked-amount max-possible-addition))
-          (reached-goal (>= new-total-locked-amount total-required-stake))
+          (reached-goal (print (>= new-total-locked-amount total-required-stake)))
           
           ;; This has preplexed me for a while now
           (stacking-response
@@ -372,6 +374,7 @@
                 code: (unwrap-err-panic stacking-response), 
                 message: "PoX contract stack-stx failed", 
                 }))
+
           (map-set 
 
             cycle-stx-vault

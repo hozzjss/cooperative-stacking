@@ -27,7 +27,7 @@ import {config} from 'dotenv'
 config();
 
 
-const contractName = "elegant-lavender-herring"
+const contractName = "cool-scarlet-swordfish"
 const testContractName = "elaborate-indigo-bird"
 
 const privateKey = createStacksPrivateKey(process.env.KEY as string);
@@ -124,5 +124,5 @@ const allowContractCaller = async () => {
 }
 // allowContractCaller();
 // delegate()
-createStackingPool();
+// createStackingPool();
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
