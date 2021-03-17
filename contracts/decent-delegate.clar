@@ -251,7 +251,8 @@
       (collateral-lock-valid (< block-height (+ lock-started-at lock-collateral-period)))
       ;; (until-block-ht (get-cycle-start (+ cycle-id u1)))
       (delegator-info (get-delegator-info cycle-id tx-sender))
-      (stake (map-get? delegator-stx-vault {delegator: tx-sender}))
+      ;; default to zero stake to avoid complications
+      (stake (default-to {locked-amount: u0} (map-get? delegator-stx-vault {delegator: tx-sender})))
       (is-new-delegator (is-none delegator-info))
       (cycle-locked-amount (get-locked-amount cycle-id))
       
@@ -298,7 +299,7 @@
 
                   max-possible-addition
 
-                  (+ max-possible-addition (get locked-amount (unwrap-panic stake)))))
+                  (+ max-possible-addition (get locked-amount stake))))
 
             ;; Sometimes a small fraction is required, a delegator
             ;; or the stacker might add that small fraction
@@ -366,6 +367,8 @@
               (err ERROR-wtf-stacks!!!)))
           (did-stack (is-ok stacking-response)))
           (asserts! 
+
+            ;; it either stacked or didn't stack
             (or (and reached-goal did-stack) (not reached-goal))
               (err {
                 code: (unwrap-err-panic stacking-response), 
@@ -526,7 +529,7 @@
       (let ((sender-balance (get locked-amount (unwrap-panic sender-vault)))
             ;; weird no?
             ;; if you find a better way let me know right away!
-            (recepient-balance (get locked-amount (unwrap-panic (default-to recepient-vault (some (some {locked-amount: u0}))))))
+            (recepient-balance (get locked-amount (default-to {locked-amount: u0} recepient-vault)))
             ;; let's take the money from here
             (sender-new-balance (- sender-balance amount))
             ;; aaaand put it there!
