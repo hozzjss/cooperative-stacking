@@ -56,7 +56,7 @@ const createStackingPool = async () => {
       uintCV(90e12),
       tupleCV({
         hashbytes: bufferCV(bitcoin.address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash),
-        version: bufferCV(Buffer.alloc(1, 111))
+        version: bufferCV(Buffer.alloc(1, 0))
       })
       // standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"),
     ],
@@ -122,6 +122,6 @@ const allowContractCaller = async () => {
   console.log(result);
 }
 // allowContractCaller();
-// delegate()
+delegate()
 // createStackingPool();
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));

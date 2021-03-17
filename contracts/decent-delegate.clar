@@ -256,10 +256,15 @@
       (cycle-locked-amount (get-locked-amount cycle-id))
       
       (balance (stx-get-balance tx-sender)))
+
+      ;; you can't delegate your stx if the cycle expired after not
+      ;; completing the amount required to start stacking
       (asserts! collateral-lock-valid
         (err {code: ERROR-better-luck-next-time, message: ""}))
+      ;; The cycle must have existed before delegating
       (asserts! (is-some cycle-locked-amount) 
         (err {code: ERROR-i-have-never-met-this-man-in-my-life, message: ""}))
+      ;; Must have enough balance to delegate
       (asserts! (>= balance amount) 
         (err {code: ERROR-you-poor-lol, message: ""}))
 
@@ -273,7 +278,11 @@
             (has-not-reached-goal (< locked-amount total-required-stake))
 
             (remaining-required-stake (- total-required-stake locked-amount))
-
+            
+            ;; The max possible STX a delegator can put in
+            ;; this would make it possible for fixed sets of
+            ;; collateralized pools
+            ;; so that the distribution is fair
             (max-possible-addition 
 
               (if (> amount remaining-required-stake)
@@ -282,6 +291,7 @@
 
                 amount))
 
+            ;; get the old locked balance
             (delegator-sum-stake 
 
               (if is-new-delegator 
@@ -290,6 +300,8 @@
 
                   (+ max-possible-addition (get locked-amount (unwrap-panic stake)))))
 
+            ;; Sometimes a small fraction is required, a delegator
+            ;; or the stacker might add that small fraction
             (requires-padding (>= max-possible-addition minimum-delegator-stake)))
         ;; stacker would then append padding and start stacking
         (asserts!
@@ -297,9 +309,11 @@
 
           (or
 
-
+            ;; it either does not require padding
             (not requires-padding)
 
+            ;; or requires and the delegator chose to sacrifice
+            ;; their stx to pad
             (and requires-padding can-safely-add-padding)) 
 
           (err {code: ERROR-requires-padding, message: ""}))
@@ -310,6 +324,7 @@
 
           (is-ok 
 
+            ;; You know this
             (stx-transfer? max-possible-addition tx-sender contract-address)) 
 
         (err 
@@ -322,6 +337,9 @@
 
 
           (is-ok 
+
+            ;; This token would represent the tokens and could be redistibuted
+            ;; So that the STX network could use this token in transactions
             (ft-mint? stacked-stx max-possible-addition tx-sender))
 
           (err 
@@ -333,6 +351,8 @@
         (let
           ((new-total-locked-amount (+ locked-amount max-possible-addition))
           (reached-goal (>= new-total-locked-amount total-required-stake))
+          
+          ;; This has preplexed me for a while now
           (stacking-response
             (if reached-goal
               ;; just for testing since clarity vscode analysis
