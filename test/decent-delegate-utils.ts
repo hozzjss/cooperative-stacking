@@ -27,7 +27,7 @@ import {config} from 'dotenv'
 config();
 
 
-const contractName = "glorious-apricot-mammal"
+const contractName = "elegant-lavender-herring"
 const testContractName = "elaborate-indigo-bird"
 
 const privateKey = createStacksPrivateKey(process.env.KEY as string);
@@ -70,7 +70,7 @@ const createStackingPool = async () => {
     //     FungibleConditionCode.GreaterEqual,
     //     new BN(1000000))
     // ]
-    postConditionMode: PostConditionMode.Allow
+    postConditionMode: PostConditionMode.Allow,
   });
   const result = await broadcastTransaction(tx, new StacksTestnet());
   const json = result;
@@ -97,7 +97,8 @@ const delegate = async () => {
     //     FungibleConditionCode.GreaterEqual,
     //     new BN(1000000))
     // ]
-    postConditionMode: PostConditionMode.Allow
+    postConditionMode: PostConditionMode.Allow,
+    nonce: new BN(91)
   });
   const result = await broadcastTransaction(tx, new StacksTestnet());
   const json = result;
@@ -123,5 +124,5 @@ const allowContractCaller = async () => {
 }
 // allowContractCaller();
 // delegate()
-// createStackingPool();
+createStackingPool();
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));

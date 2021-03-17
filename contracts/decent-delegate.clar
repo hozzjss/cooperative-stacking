@@ -272,12 +272,15 @@
       (let 
 
         (
-            (locked-amount (get locked-amount (unwrap-panic cycle-locked-amount)))
-            
+            ;; you can add the difference if you've contributed before
             (can-safely-add-padding (or sacrifice-stx-for-padding (not is-new-delegator)))
 
+            ;; Reach goal after getting the amount of stacks required before starting
             (has-not-reached-goal (< locked-amount total-required-stake))
+            
+            (locked-amount (get locked-amount (unwrap-panic cycle-locked-amount)))
 
+            ;; How much stx are required to fulfill stacking
             (remaining-required-stake (- total-required-stake locked-amount))
             
             ;; The max possible STX a delegator can put in
@@ -286,11 +289,7 @@
             ;; so that the distribution is fair
             (max-possible-addition 
 
-              (if (> amount remaining-required-stake)
-
-                remaining-required-stake
-
-                amount))
+              (if (> amount remaining-required-stake) remaining-required-stake amount))
 
             ;; get the old locked balance
             (delegator-sum-stake 
@@ -303,7 +302,7 @@
 
             ;; Sometimes a small fraction is required, a delegator
             ;; or the stacker might add that small fraction
-            (requires-padding (>= max-possible-addition minimum-delegator-stake)))
+            (requires-padding (< max-possible-addition minimum-delegator-stake)))
         ;; stacker would then append padding and start stacking
         (asserts!
 
@@ -362,8 +361,7 @@
               (as-contract 
                 (contract-call? 
                   'ST000000000000000000002AMW42H.pox 
-                  stack-stx new-total-locked-amount pox-address burn-block-height cycle-count
-                  )) 
+                  stack-stx new-total-locked-amount pox-address burn-block-height cycle-count))
               (err ERROR-wtf-stacks!!!)))
           (did-stack (is-ok stacking-response)))
           (asserts! 
