@@ -53,10 +53,8 @@
 (define-data-var pox-prepare-cycle-length uint PREPARE_CYCLE_LENGTH)
 (define-data-var pox-reward-cycle-length uint REWARD_CYCLE_LENGTH)
 (define-data-var pox-rejection-fraction uint u0)
-(define-data-var first-burnchain-block-height uint u1931620)
+(define-data-var first-burnchain-block-height uint u1)
 (define-data-var configured bool true)
-(define-constant bitcoin-height u1940721)
-(define-constant stacks-height u5794)
 
 ;; This function can only be called once, when it boots up
 
@@ -180,7 +178,7 @@
 
 ;; What's the current PoX reward cycle?
 (define-private (current-pox-reward-cycle)
-    (burn-height-to-reward-cycle bitcoin-height))
+    (burn-height-to-reward-cycle burn-block-height))
 
 ;; Get the _current_ PoX stacking principal information.  If the information
 ;; is expired, or if there's never been such a stacker, then returns none.
@@ -205,7 +203,7 @@
                                     { sender: tx-sender, contract-caller: contract-caller })
                           false)))
           ;; is the caller allowance expired?
-          (if (< bitcoin-height (unwrap! (get until-burn-ht caller-allowed) true))
+          (if (< burn-block-height (unwrap! (get until-burn-ht caller-allowed) true))
               false
               true))))
 
@@ -213,7 +211,7 @@
     (let ((delegation-info (try! (map-get? delegation-state { stacker: stacker }))))
       ;; did the existing delegation expire?
       (if (match (get until-burn-ht delegation-info)
-                 until-burn-ht (> bitcoin-height until-burn-ht)
+                 until-burn-ht (> burn-block-height until-burn-ht)
                  false)
           ;; it expired, return none
           none
@@ -462,7 +460,6 @@
           (specified-reward-cycle (+ u1 (burn-height-to-reward-cycle start-burn-ht))))
       ;; the start-burn-ht must result in the next reward cycle, do not allow stackers
       ;;  to "post-date" their `stack-stx` transaction
-      (print "Hi")
       (asserts! (is-eq first-reward-cycle specified-reward-cycle)
                 (err ERR_INVALID_START_BURN_HEIGHT))
 

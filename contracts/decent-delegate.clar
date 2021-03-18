@@ -13,7 +13,7 @@
 ;; (asserts! 
 ;;   (is-ok 
 ;;     (contract-call? 'ST000000000000000000002AMW42H.pox 
-;;       delegate-stack-stx tx-sender amount pox-address (get-burn-height) cycle-count))
+;;       delegate-stack-stx tx-sender amount pox-address burn-block-height cycle-count))
 ;;   (err ERROR-wtf-stacks!!!))
 ;; now the contract would stack itself
 ;; instead of pox complications
@@ -33,9 +33,8 @@
 ;; (define-constant reward-cycle-length u2100)
 ;; (define-constant prepare-cycle-length u100)
 (define-constant reward-cycle-length u50)
-(define-constant first-burnchain-block-height u1931620)
+(define-constant first-burnchain-block-height (if (< burn-block-height u1931620) burn-block-height u1931620))
 (define-constant prepare-cycle-length u10)
-(define-constant is-dev (< block-height u100))
 
 
 
@@ -141,7 +140,7 @@
         collateral: collateral,
         deposited-collateral: u0,
         lock-collateral-period: lock-collateral-period,
-        lock-started-at: (get-stacks-height),
+        lock-started-at: block-height,
         total-required-stake: total-required-stake,
         pox-address: pox-address,
       })))
@@ -218,7 +217,7 @@
     (lock-collateral-period (get lock-collateral-period cycle-info))
     (lock-started-at (get lock-started-at cycle-info))
     (total-required-stake (get total-required-stake cycle-info))
-    (collateral-lock-expired (>= (get-stacks-height) (+ lock-started-at lock-collateral-period)))
+    (collateral-lock-expired (>= block-height (+ lock-started-at lock-collateral-period)))
     (cycle-locked-amount (get-locked-amount cycle-id)))
   (and collateral-lock-expired (< (get locked-amount (unwrap-panic cycle-locked-amount)) total-required-stake)))
 )
@@ -251,7 +250,8 @@
       (lock-collateral-period (get lock-collateral-period cycle-info))
       (lock-started-at (get lock-started-at cycle-info))
       (total-required-stake (get total-required-stake cycle-info))
-      (collateral-lock-valid (< (get-stacks-height) (+ lock-started-at lock-collateral-period)))
+      (lock-expires-at (+ lock-started-at lock-collateral-period))
+      (collateral-lock-valid (< block-height lock-expires-at))
       ;; (until-block-ht (get-cycle-start (+ cycle-id u1)))
       (delegator-info (get-delegator-info cycle-id tx-sender))
       ;; default to zero stake to avoid complications
@@ -366,7 +366,7 @@
               (as-contract 
                 (contract-call? 
                   'ST000000000000000000002AMW42H.pox 
-                  stack-stx new-total-locked-amount pox-address (get-burn-height) cycle-count))
+                  stack-stx new-total-locked-amount pox-address burn-block-height cycle-count))
               (err ERROR-wtf-stacks!!!)))
           (did-stack (is-ok stacking-response)))
           (asserts! 
@@ -398,7 +398,7 @@
               cycle: cycle-id,
               delegator: tx-sender,
               delegated-amount: delegator-sum-stake,
-              time-until-cycle-expiry: (- (get-stacks-height) lock-collateral-period),
+              time-until-cycle-expiry: lock-expires-at,
             })))))
 
 
@@ -452,7 +452,7 @@
   (get-cycle (get-next-cycle-id)))
 
 (define-read-only (get-next-cycle-id)
-  (+ (burn-height-to-reward-cycle (get-burn-height)) u1))
+  (+ (burn-height-to-reward-cycle burn-block-height) u1))
 
 
 (define-read-only (get-next-pox-start) 
@@ -567,8 +567,3 @@
     (ok none))
 
 
-(define-read-only (get-burn-height) 
-  (if is-dev u1940721 burn-block-height))
-
-(define-read-only (get-stacks-height) 
-  (if is-dev u5795 burn-block-height))

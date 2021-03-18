@@ -1,22 +1,27 @@
-import { Client, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
+import { Client, NativeClarityBinProvider, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
+import { getDefaultBinaryFilePath } from "@blockstack/clarity-native-bin";
 import { standardPrincipalCV } from "@stacks/transactions";
 import { assert, expect } from "chai";
+import {
+  getTempFilePath
+} from "@blockstack/clarity/lib/utils/fsUtil";
 
-
+import {DDXClient} from './ddx-client'
 
 describe("decent delegate contract test suite", () => {
   let decentDelegateClient: Client;
   let poxClient: Client;
-  let provider: Provider;
+  let provider: NativeClarityBinProvider;
 
   before(async () => {
-    provider = await ProviderRegistry.createProvider([
+    provider = await NativeClarityBinProvider.create([
       {
         amount: 1e18,
         principal: "SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB"
       },
-    ]);
-    decentDelegateClient = new Client("SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB.decent-delegate", "decent-delegate", provider);
+    ], getTempFilePath(), getDefaultBinaryFilePath());
+
+    decentDelegateClient = new DDXClient(provider);
     poxClient = new Client("ST000000000000000000002AMW42H.pox", "pox", provider);
   });
 
@@ -85,6 +90,24 @@ describe("decent delegate contract test suite", () => {
       const result = await decentDelegateClient.submitTransaction(tx);
 
       expect(Result.extract(result).success).equal(false, "Minimum required");
+    })
+
+    it("should stack once it reaches goal", async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'delegate',
+          args: [
+            "u" + 100e12,
+            "false"
+          ]
+        }
+      });
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+
+      const result = await decentDelegateClient.submitTransaction(tx);
+
+      console.log(Result.unwrap(result))
+      expect(Result.extract(result).success).equal(true, "Stacked");
     })
     
     // it("it should stack", async () => {
