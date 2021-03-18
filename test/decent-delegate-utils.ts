@@ -60,7 +60,7 @@ const createStackingPool = async () => {
       })
       // standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"),
     ],
-    functionName: 'create-decent-pool',
+    functionName: 'parallel-sapphire-pig',
     // senderAddress: "ST000000000000000000002AMW42H",
     senderKey: process.env.KEY as string,
     network: new StacksTestnet(),

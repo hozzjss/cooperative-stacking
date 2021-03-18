@@ -55,8 +55,8 @@
 (define-data-var pox-rejection-fraction uint u0)
 (define-data-var first-burnchain-block-height uint u1931620)
 (define-data-var configured bool true)
-(define-constant bitcoin-height u1940641)
-(define-constant stacks-height u5721)
+(define-constant bitcoin-height u1940721)
+(define-constant stacks-height u5794)
 
 ;; This function can only be called once, when it boots up
 

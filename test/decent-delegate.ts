@@ -1,6 +1,8 @@
 import { Client, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
 import { standardPrincipalCV } from "@stacks/transactions";
-import { assert } from "chai";
+import { assert, expect } from "chai";
+
+
 
 describe("decent delegate contract test suite", () => {
   let decentDelegateClient: Client;
@@ -23,7 +25,8 @@ describe("decent delegate contract test suite", () => {
       await poxClient.checkContract();
       await poxClient.deployContract();
       await decentDelegateClient.checkContract();
-      await decentDelegateClient.deployContract();
+      const result = await decentDelegateClient.deployContract();
+      console.log({deploy: Result.unwrap(result)})
       });
     
     it('should create a pool', async () => {
@@ -36,7 +39,7 @@ describe("decent delegate contract test suite", () => {
             "u1",
             "u7500000000",
             "u1000",
-            "u90000000000000",
+            "u" + 90e12,
             "{hashbytes: 0x83a2c9ebbdedebd6f2c4fde942f1e1141140aeaa, version: 0x00}",
           ]
         },
@@ -54,7 +57,7 @@ describe("decent delegate contract test suite", () => {
         method: {
           name: 'delegate',
           args: [
-            "u20000000000000",
+            "u" + 100e6,
             "true",
           ]
         },
@@ -63,8 +66,25 @@ describe("decent delegate contract test suite", () => {
       tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
       await decentDelegateClient.submitTransaction(tx);
       const receipt = await decentDelegateClient.submitTransaction(tx);
-      const result = Result.unwrap(receipt);
-      console.log(result);
+      const result = Result.extract(receipt);
+      expect(result.success).equal(true)
+    })
+
+    it("should reject stacking requests lower than the minimum", async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'delegate',
+          args: [
+            "u100",
+            "false"
+          ]
+        }
+      });
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+
+      const result = await decentDelegateClient.submitTransaction(tx);
+
+      expect(Result.extract(result).success).equal(false, "Minimum required");
     })
     
     // it("it should stack", async () => {
