@@ -1,4 +1,4 @@
-import { Client, NativeClarityBinProvider, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
+import { Client, JsonRpcProvider, NativeClarityBinProvider, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
 import { getDefaultBinaryFilePath } from "@blockstack/clarity-native-bin";
 import { standardPrincipalCV } from "@stacks/transactions";
 import { assert, expect } from "chai";
@@ -25,7 +25,7 @@ describe("decent delegate contract test suite", () => {
     poxClient = new Client("ST000000000000000000002AMW42H.pox", "pox", provider);
   });
 
-  describe("deploying an instance of the contract", () => {
+  describe("Best case scenarios", () => {
     before(async () => {
       await poxClient.checkContract();
       await poxClient.deployContract();
@@ -109,6 +109,21 @@ describe("decent delegate contract test suite", () => {
       console.log(Result.unwrap(result))
       expect(Result.extract(result).success).equal(true, "Stacked");
     })
+
+
+    it('should allow stacker to deposit after stacking starts', async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'is-new-delegator',
+          args: []
+        },
+      })
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      
+      // const result =  await decentDelegateClient.submitTransaction(tx)
+      // console.log(Result.unwrap(result))
+    })
+
     
     // it("it should stack", async () => {
     //   const tx = poxClient.createTransaction({

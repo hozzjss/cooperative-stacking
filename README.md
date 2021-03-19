@@ -21,3 +21,21 @@ Smart contracts can be 1st class **stackers** and that while it might seem a sim
 
 
 This is a work in progress open source project and any contributions are welcome, there's a grant request open here [DecentDelegate Grant](https://github.com/stacksgov/Stacks-Grants/issues/69)
+
+
+## Flow
+
+- A **Stacker** deploys this contract
+- A **Stacker** would call `create-decent-pool` with parameters for that pool
+- **Delegators** would keep virtually delegating by depositing funds into the contract
+- Multiple **Delegators** can delegate to the pool
+- A delegator can only increase their stake
+- There's no going back except if the lock expires or the lock cycle/s complete
+- After one of these events happen 
+- The stacking cycle starts once the pool is full of the fixed required amount
+- The delegator might only send amounts larger than `minimum-delegator-stake` set in creation
+- When stacking begins a **Stacker**  would get rewards into the `pox-address` they specified
+- Stacker would have put collateral against their pledged rewards in STX
+- That collateral can be taken from at any time by the delegators and at first they won't be able to withdraw the rest of their rewards later on
+- The stacking cycle ends when the 
+ 

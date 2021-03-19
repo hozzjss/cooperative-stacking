@@ -1,4 +1,4 @@
-import { StacksTestnet } from "@stacks/network";
+import { StacksMocknet, StacksTestnet } from "@stacks/network";
 import {
   broadcastTransaction,
   bufferCV,
@@ -13,6 +13,7 @@ import {
   getAddressFromPublicKey,
   getPublicKey,
   makeContractCall,
+  makeContractDeploy,
   noneCV,
   PostConditionMode,
   standardPrincipalCV,
@@ -24,11 +25,16 @@ import {
 import * as bitcoin from 'bitcoinjs-lib'
 import BN from "bn.js";
 import {config} from 'dotenv'
+import fs from 'fs'
+import path from 'path'
 config();
 
 
-const contractName = "cool-scarlet-swordfish"
+const contractName = "decent-delegate-v6"
 const testContractName = "elaborate-indigo-bird"
+
+const network = new StacksMocknet();
+// const network = new StacksTestnet();
 
 const privateKey = createStacksPrivateKey(process.env.KEY as string);
 const publicKey = getPublicKey(privateKey);
@@ -40,6 +46,19 @@ const bitcoinAddress = bitcoin.payments.p2pkh({pubkey: pubKey.data}).address
 
 // console.log(stxAddress, bitcoinAddress)
 
+
+const deployContract = async () => {
+  const tx = await makeContractDeploy({
+    codeBody: fs.readFileSync(path.resolve('./contracts/decent-delegate.clar')).toString(),
+    contractName,
+    senderKey: process.env.KEY as string,
+    network,
+    fee: new BN(29000)
+  });
+
+  const result = await broadcastTransaction(tx, network);
+  console.log({result});
+}
 
 
 console.log(bitcoin.address.fromBase58Check(bitcoinAddress as string).hash.toString('hex'))
@@ -53,26 +72,18 @@ const createStackingPool = async () => {
       uintCV(1),
       uintCV(7500000000),
       uintCV(1000),
-      uintCV(90e12),
+      uintCV(86e12),
       tupleCV({
         hashbytes: bufferCV(bitcoin.address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash),
         version: bufferCV(Buffer.alloc(1, 0))
       })
-      // standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"),
     ],
-    functionName: 'parallel-sapphire-pig',
-    // senderAddress: "ST000000000000000000002AMW42H",
+    functionName: 'create-decent-pool',
     senderKey: process.env.KEY as string,
-    network: new StacksTestnet(),
-    // postConditions: [
-    //   createSTXPostCondition(
-    //     'ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7',
-    //     FungibleConditionCode.GreaterEqual,
-    //     new BN(1000000))
-    // ]
+    network: network,
     postConditionMode: PostConditionMode.Allow,
   });
-  const result = await broadcastTransaction(tx, new StacksTestnet());
+  const result = await broadcastTransaction(tx, network);
   const json = result;
 
   console.log(json);
@@ -83,24 +94,35 @@ const delegate = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(15e12),
+      uintCV(86e12),
       trueCV()
-      // standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"),
     ],
     functionName: 'delegate',
-    // senderAddress: "ST000000000000000000002AMW42H",
     senderKey: process.env.KEY as string,
-    network: new StacksTestnet(),
-    // postConditions: [
-    //   createSTXPostCondition(
-    //     'ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7',
-    //     FungibleConditionCode.GreaterEqual,
-    //     new BN(1000000))
-    // ]
+    network: network,
     postConditionMode: PostConditionMode.Allow,
-    nonce: new BN(91)
+    fee: new BN(10000000)
   });
-  const result = await broadcastTransaction(tx, new StacksTestnet());
+  const result = await broadcastTransaction(tx, network);
+  const json = result;
+
+  console.log(json);
+};
+
+const deposit = async () => {
+  const tx =await makeContractCall({
+    contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
+    contractName,
+    functionArgs: [
+      uintCV(7500e6),
+    ],
+    functionName: 'deposit-to-collateral',
+    senderKey: process.env.KEY as string,
+    network: network,
+    fee: new BN(100000000),
+    postConditionMode: PostConditionMode.Allow,
+  });
+  const result = await broadcastTransaction(tx, network);
   const json = result;
 
   console.log(json);
@@ -116,13 +138,17 @@ const allowContractCaller = async () => {
       noneCV()
     ],
     senderKey: process.env.KEY as string,
-    network: new StacksTestnet()
+    network: network
   })
-  const result = await broadcastTransaction(tx, new StacksTestnet());
+  const result = await broadcastTransaction(tx, network);
 
   console.log(result);
 }
-// allowContractCaller();
-// delegate()
+
+
+// deployContract()
 // createStackingPool();
+// delegate()
+deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
+// allowContractCaller();

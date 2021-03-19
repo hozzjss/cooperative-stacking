@@ -29,12 +29,18 @@
 
 
 ;; TODO: NEVER FORGET THIS!!!
+;; MAINNET
 ;; (define-constant first-burnchain-block-height u666050)
 ;; (define-constant reward-cycle-length u2100)
 ;; (define-constant prepare-cycle-length u100)
-(define-constant reward-cycle-length u50)
-(define-constant first-burnchain-block-height (if (< burn-block-height u1931620) burn-block-height u1931620))
-(define-constant prepare-cycle-length u10)
+;; TESTNET
+;; (define-constant reward-cycle-length u50)
+;; (define-constant first-burnchain-block-height u1931620)
+;; (define-constant prepare-cycle-length u10)
+;; MOCKNET
+(define-constant reward-cycle-length u150)
+(define-constant first-burnchain-block-height (if (< burn-block-height u1931620) u0 u1931620))
+(define-constant prepare-cycle-length u30)
 
 
 
@@ -101,8 +107,7 @@
     locked-amount: uint,
   })
 
-(define-public 
-  (create-decent-pool
+(define-public (create-decent-pool
     (pledged-payout uint)
     (minimum-delegator-stake uint)
     (cycle-count uint)
@@ -146,8 +151,9 @@
       })))
   )
 
-(define-read-only (get-locked-amount (cycle-id uint)) 
+(define-read-only (get-cycle-locked-amount (cycle-id uint)) 
   (map-get? cycle-stx-vault {cycle: cycle-id}))
+
 
 (define-public (deposit-to-collateral (amount uint)) 
   (let 
@@ -166,8 +172,7 @@
       (err ERROR-wtf-stacks!!!))
 
     (increase-deposit amount)))
-      
-    
+
 
 
 ;; if you want you could get your cut but 
@@ -218,7 +223,7 @@
     (lock-started-at (get lock-started-at cycle-info))
     (total-required-stake (get total-required-stake cycle-info))
     (collateral-lock-expired (>= block-height (+ lock-started-at lock-collateral-period)))
-    (cycle-locked-amount (get-locked-amount cycle-id)))
+    (cycle-locked-amount (get-cycle-locked-amount cycle-id)))
   (and collateral-lock-expired (< (get locked-amount (unwrap-panic cycle-locked-amount)) total-required-stake)))
 )
 
@@ -240,135 +245,54 @@
     (err ERROR-wtf-stacks!!!))
     (ok true)))
 
-(define-public (delegate (amount uint) (sacrifice-stx-for-padding bool)) 
+
+
+(define-public (delegate (amount uint) (sacrifice-stx-for-padding bool))
     (let 
       ((cycle-id (get-next-cycle-id))
-      (cycle-info (get-cycle cycle-id))
-      (pox-address (get pox-address cycle-info))
-      (cycle-count (get cycle-count cycle-info))
-      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
-      (lock-collateral-period (get lock-collateral-period cycle-info))
-      (lock-started-at (get lock-started-at cycle-info))
-      (total-required-stake (get total-required-stake cycle-info))
-      (lock-expires-at (+ lock-started-at lock-collateral-period))
-      (collateral-lock-valid (< block-height lock-expires-at))
       ;; (until-block-ht (get-cycle-start (+ cycle-id u1)))
-      (delegator-info (get-delegator-info cycle-id tx-sender))
       ;; default to zero stake to avoid complications
-      (stake (default-to {locked-amount: u0} (map-get? delegator-stx-vault {delegator: tx-sender})))
-      (is-new-delegator (is-none delegator-info))
-      (cycle-locked-amount (get-locked-amount cycle-id))
       
-      (balance (stx-get-balance tx-sender)))
+      (assertions (delegate-assertions amount)))
 
-      (asserts! (>= amount minimum-delegator-stake) 
-        (err {code: ERROR-you-poor-lol, message: ""}))
-      ;; you can't delegate your stx if the cycle expired after not
-      ;; completing the amount required to start stacking
-      (asserts! collateral-lock-valid
-        (err {code: ERROR-better-luck-next-time, message: ""}))
-      ;; The cycle must have existed before delegating
-      (asserts! (is-some cycle-locked-amount) 
-        (err {code: ERROR-i-have-never-met-this-man-in-my-life, message: ""}))
-      ;; Must have enough balance to delegate
-      (asserts! (>= balance amount) 
-        (err {code: ERROR-you-poor-lol, message: ""}))
+    (asserts! (is-ok assertions) 
+      (err (unwrap-err-panic assertions)))
+      
 
       (let 
 
         (
-            ;; you can add the difference if you've contributed before
-            (can-safely-add-padding (or sacrifice-stx-for-padding (not is-new-delegator)))
-
-            ;; Reach goal after getting the amount of stacks required before starting
-            (locked-amount (get locked-amount (unwrap-panic cycle-locked-amount)))
-            (has-not-reached-goal (< locked-amount total-required-stake))
-            
-
-            ;; How much stx are required to fulfill stacking
-            (remaining-required-stake (- total-required-stake locked-amount))
-            
-            ;; The max possible STX a delegator can put in
-            ;; this would make it possible for fixed sets of
-            ;; collateralized pools
-            ;; so that the distribution is fair
-            (max-possible-addition 
-
-              (if (> amount remaining-required-stake) remaining-required-stake amount))
-
-            ;; get the old locked balance
-            (delegator-sum-stake 
-
-              (if is-new-delegator 
-
-                  max-possible-addition
-
-                  (+ max-possible-addition (get locked-amount stake))))
-
-            ;; Sometimes a small fraction is required, a delegator
-            ;; or the stacker might add that small fraction
-            (requires-padding (< max-possible-addition minimum-delegator-stake)))
+          (locked-amount (get locked-amount (unwrap-panic (get-cycle-locked-amount cycle-id))))
+          ;; How much stx are required to fulfill stacking
+          (lock-response (lock-and-mint-DDX amount sacrifice-stx-for-padding)))
         ;; stacker would then append padding and start stacking
-        (asserts!
-
-
-          (or
-
-            ;; it either does not require padding
-            (not requires-padding)
-
-            ;; or requires and the delegator chose to sacrifice
-            ;; their stx to pad
-            (and requires-padding can-safely-add-padding)) 
-
-          (err {code: ERROR-requires-padding, message: ""}))
-
-
-        (asserts!
-
-
-          (is-ok 
-
-            ;; You know this
-            (stx-transfer? max-possible-addition tx-sender contract-address)) 
-
-        (err 
-          {
-            code: ERROR-wtf-stacks!!!,
-            message: "Couldn't transfer funds from delegator" 
-          }))
-
-        (asserts!
-
-
-          (is-ok 
-
-            ;; This token would represent the tokens and could be redistibuted
-            ;; So that the STX network could use this token in transactions
-            (ft-mint? stacked-stx max-possible-addition tx-sender))
-
-          (err 
-            {
-              code: ERROR-wtf-stacks!!!,
-              message: "Couldn't mint stacked-stx to delegator" 
-            }))
+        (asserts! (is-ok lock-response)
+          (err (unwrap-err-panic lock-response)))
 
         (let
-          ((new-total-locked-amount (+ locked-amount max-possible-addition))
-          (reached-goal (>= new-total-locked-amount total-required-stake))
-          
-          ;; This has preplexed me for a while now
-          (stacking-response
-            (if reached-goal
-              ;; just for testing since clarity vscode analysis
-              ;; is upset with contract calls
-              ;; (ok true)
-              (as-contract 
-                (contract-call? 
-                  'ST000000000000000000002AMW42H.pox 
-                  stack-stx new-total-locked-amount pox-address burn-block-height cycle-count))
-              (err ERROR-wtf-stacks!!!)))
-          (did-stack (is-ok stacking-response)))
+          (
+            (cycle-info (get-cycle cycle-id))
+            (delegator-sum-stake (get delegator-sum-stake (unwrap-panic lock-response)))
+            (max-possible-addition (get max-possible-addition (unwrap-panic lock-response)))
+            (lock-collateral-period (get lock-collateral-period cycle-info))
+            (new-total-locked-amount (+ locked-amount max-possible-addition))
+            (reached-goal (>= new-total-locked-amount (get total-required-stake cycle-info)))
+            (pox-address (get pox-address cycle-info))
+            (cycle-count (get cycle-count cycle-info))
+            (lock-started-at (get lock-started-at cycle-info))
+            (lock-expires-at (+ lock-started-at lock-collateral-period))
+                  ;; This has preplexed me for a while now
+            (stacking-response
+              (if reached-goal
+                ;; just for testing since clarity vscode analysis
+                ;; is upset with contract calls
+                ;; (ok true)
+                (as-contract 
+                  (contract-call? 
+                    'ST000000000000000000002AMW42H.pox 
+                    stack-stx new-total-locked-amount pox-address burn-block-height cycle-count))
+                (err ERROR-wtf-stacks!!!)))
+            (did-stack (is-ok stacking-response)))
           (asserts! 
 
             ;; it either stacked or didn't stack
@@ -416,8 +340,6 @@
   (get deposited-collateral (get-next-cycle-info stacker)))
 
 
-(define-private (set-current-deposit (amount uint))
-  (set-deposit amount))
 
 (define-private (increase-deposit (amount uint)) 
   (let ((new-collateral-amount (+ (get-current-deposit tx-sender) amount))
@@ -430,8 +352,10 @@
         (is-promise-fulfilled (>= new-collateral-amount promised-rewards)))
     (asserts! (not cycle-expired) 
       (err ERROR-didnt-we-just-go-through-this-the-other-day))
-    (set-current-deposit new-collateral-amount)
-    (if (>= promised-rewards minimum-viable-pool-reward)
+    (set-deposit new-collateral-amount)
+    (asserts! (is-ok (stx-transfer? amount tx-sender contract-address))
+      (err ERROR-wtf-stacks!!!))
+    (if is-promise-fulfilled
       (begin 
         (asserts! (is-eq reputation u12) 
           (err ERROR-you-cant-get-any-awesomer))
@@ -440,7 +364,7 @@
         (asserts! (is-ok (award-reputation))
           (err ERROR-wtf-stacks!!!))
         (ok true))
-      (err ERROR-you-poor-lol))))
+      (ok true))))
 
 (define-private (award-reputation) 
   (let ((supply (ft-get-balance decent-delegate-reputation contract-address)))
@@ -495,15 +419,12 @@
 
 
 ;; I know I know
-(define-private (set-deposit
-                  (deposited-collateral  uint))
-  (let ((current-cycle-info (get-next-cycle-info stacker)))
-
-    (map-set stacking-offer-details 
-      {cycle: (get-next-cycle-id)}
-      (merge 
-        current-cycle-info 
-        { deposited-collateral: deposited-collateral,}))))
+(define-private (set-deposit (deposited-collateral uint))
+  (map-set stacking-offer-details 
+    {cycle: (get-next-cycle-id)}
+    (merge 
+      (get-next-cycle-info stacker)
+      { deposited-collateral: deposited-collateral,})))
 
 
 ;; This should make stacked stx liquid
@@ -546,6 +467,13 @@
     )
 )
 
+(define-data-var token-uri (string-utf8 256) u"")
+
+(define-public (set-token-uri (uri (string-utf8 256))) 
+  (begin
+    (asserts! (is-creator) (err ERROR-not-my-president!))
+    (ok (var-set token-uri uri))))
+
 ;; stolen from jude
 
 (define-read-only (get-name)
@@ -564,6 +492,97 @@
     (ok (stx-get-balance (as-contract tx-sender))))
 
 (define-read-only (get-token-uri)
-    (ok none))
+    (ok (var-get token-uri)))
 
 
+(define-read-only (delegate-assertions (amount uint))
+  (let 
+      ((cycle-id (get-next-cycle-id))
+      (cycle-info (get-cycle cycle-id))
+      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
+      (lock-collateral-period (get lock-collateral-period cycle-info))
+      (lock-started-at (get lock-started-at cycle-info))
+      (lock-expires-at (+ lock-started-at lock-collateral-period))
+      (collateral-lock-valid (< block-height lock-expires-at))
+      (cycle-locked-amount (get-cycle-locked-amount cycle-id))
+      (balance (stx-get-balance tx-sender)))
+
+      (asserts! (>= amount minimum-delegator-stake) 
+        (err {code: ERROR-you-poor-lol, message: ""}))
+      ;; you can't delegate your stx if the cycle expired after not
+      ;; completing the amount required to start stacking
+      (asserts! collateral-lock-valid
+        (err {code: ERROR-better-luck-next-time, message: ""}))
+      ;; The cycle must have existed before delegating
+      (asserts! (is-some cycle-locked-amount) 
+        (err {code: ERROR-i-have-never-met-this-man-in-my-life, message: ""}))
+      ;; Must have enough balance to delegate
+      (asserts! (>= balance amount) 
+        (err {code: ERROR-you-poor-lol, message: ""}))
+      (ok true)))
+
+
+(define-read-only (get-delegator-stake)
+  (default-to {locked-amount: u0} (map-get? delegator-stx-vault {delegator: tx-sender})))
+
+(define-read-only (is-new-delegator)
+  (is-eq u0 (get locked-amount (get-delegator-stake))))
+
+(define-read-only (get-new-stake (amount uint))
+  (let (
+    (cycle-id (get-next-cycle-id))
+    (cycle-info (get-cycle cycle-id))
+    (cycle-locked-amount (get locked-amount (unwrap-panic (get-cycle-locked-amount cycle-id))))
+    (total-required-stake (get total-required-stake cycle-info))
+    (stake (get-delegator-stake))
+    ;; How much stx are required to fulfill stacking
+    (remaining-required-stake (- total-required-stake cycle-locked-amount))
+    ;; The max possible STX a delegator can put in
+    ;; this would make it possible for fixed sets of
+    ;; collateralized pools
+    ;; so that the distribution is fair
+    (max-possible-addition 
+
+      (if (> amount remaining-required-stake) remaining-required-stake amount))
+
+    ;; get the old locked balance
+    (delegator-sum-stake 
+          (+ max-possible-addition (get locked-amount stake))))
+    {delegator-sum-stake: delegator-sum-stake, max-possible-addition: max-possible-addition}))
+
+(define-private (lock-and-mint-DDX (amount uint) (sacrifice-stx-for-padding bool))
+  (let (
+      (cycle-info (get-cycle (get-next-cycle-id)))
+      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
+      ;; you can add the difference if you've contributed before
+      (can-safely-add-padding (or sacrifice-stx-for-padding (not (is-new-delegator))))
+      ;; Reach goal after getting the amount of stacks required before starting
+      
+      (new-stake-info (get-new-stake amount))
+      ;; How much stx are required to fulfill stacking
+      (max-possible-addition (get max-possible-addition new-stake-info))
+      ;; Sometimes a small fraction is required, a delegator
+      ;; or the stacker might add that small fraction
+      (requires-padding (< max-possible-addition minimum-delegator-stake)))
+    ;; stacker would then append padding and start stacking
+    (asserts!
+      (or
+        ;; it either does not require padding
+        (not requires-padding)
+        ;; or requires and the delegator chose to sacrifice
+        ;; their stx to pad
+        (and requires-padding can-safely-add-padding)) 
+
+      (err {code: ERROR-requires-padding, message: ""}))
+
+
+    (asserts!
+      (and
+        (is-ok (stx-transfer? max-possible-addition tx-sender contract-address))
+        (is-ok (ft-mint? stacked-stx max-possible-addition tx-sender)))
+    (err 
+      {
+        code: ERROR-wtf-stacks!!!,
+        message: "Couldn't transfer and convert funds from delegator" 
+      }))
+    (ok new-stake-info)))
