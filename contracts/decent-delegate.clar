@@ -6,8 +6,8 @@
 
 ;; TODO: change this when changing to mainnet
 ;; (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
+;; (impl-trait .sip-10-ft-standard.ft-trait)
 
-(impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
 
 ;; this token would be awarded at the end of each successful cycle
 ;; and would be taken away if the cycle failed to produce the promised STX
@@ -37,8 +37,8 @@
 )
 
 ;; What's the current PoX reward cycle?
-(define-public (current-pox-reward-cycle)
-    (ok (burn-height-to-reward-cycle burn-block-height)))
+(define-private (get-current-cycle-id)
+    (burn-height-to-reward-cycle burn-block-height))
 
 
 
@@ -347,18 +347,14 @@
           (cycle-expired (is-pool-expired cycle-id))
           (is-promise-fulfilled (>= new-collateral-amount promised-rewards))
     )
-    (print new-collateral-amount)
-    (print  promised-rewards)
-    (print is-promise-fulfilled)
-    (print current-deposit)
     (asserts! (not cycle-expired) 
       (err ERROR-didnt-we-just-go-through-this-the-other-day))
     (set-deposit new-collateral-amount)
     (if is-promise-fulfilled
       (begin
-        (asserts! (is-eq reputation u12) 
+        (asserts! (< reputation u12) 
           (err ERROR-you-cant-get-any-awesomer))
-        (asserts! (and no-more-rep (is-eq reputation u0)) 
+        (asserts! (not no-more-rep)
           (err ERROR-you-had-12-chances-wtf!))
         (asserts! (is-ok (award-reputation))
           (err ERROR-wtf-stacks!!!))
@@ -377,8 +373,8 @@
 (define-read-only (get-next-cycle-id)
   (+ (burn-height-to-reward-cycle burn-block-height) u1))
 
-(define-read-only (get-current-cycle-id) 
-  (- (get-next-cycle-id) u1))
+;; (define-read-only (get-current-cycle-id) 
+;;   (- (get-next-cycle-id) u1))
 
 
 (define-read-only (get-next-pox-start) 
@@ -423,11 +419,29 @@
 
 ;; I know I know
 (define-private (set-deposit (deposited-collateral uint))
-  (map-set stacking-offer-details 
-    {cycle: (get-next-cycle-id)}
+  (map-set stacking-offer-details
+    {cycle: (get-current-cycle-id)}
     (merge 
       (unwrap-panic (get-cycle (get-current-cycle-id)))
       { deposited-collateral: deposited-collateral,})))
+
+
+;; (define-private (set-deposit (deposited-collateral uint))
+;;   (let ((cycle-info (unwrap-panic (get-cycle (get-current-cycle-id)))))
+;;     (map-set stacking-offer-details 
+;;     {cycle: (get-next-cycle-id)}
+;;       { 
+;;         deposited-collateral: deposited-collateral,
+;;         pledged-payout: (get pledged-payout cycle-info),
+;;         minimum-delegator-stake: (get minimum-delegator-stake cycle-info),
+;;         cycle-count: (get cycle-count cycle-info),
+;;         collateral: (get collateral cycle-info),
+;;         lock-collateral-period: (get lock-collateral-period cycle-info),
+;;         lock-started-at: (get lock-started-at cycle-info),
+;;         total-required-stake: (get total-required-stake cycle-info),
+;;         pox-address: (get pox-address cycle-info),
+;;       }
+;;       )))
 
 
 ;; This should make stacked stx liquid

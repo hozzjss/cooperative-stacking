@@ -114,7 +114,7 @@ const deposit = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(500e6),
+      uintCV(5500e6),
     ],
     functionName: 'deposit-to-collateral',
     senderKey: process.env.KEY as string,
