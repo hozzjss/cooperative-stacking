@@ -287,13 +287,9 @@
                 (err (to-int ERROR-wtf-stacks!!!))))
             (did-stack (is-ok stacking-response)))
           (asserts! 
-
             ;; it either stacked or didn't stack
             (or (and reached-goal did-stack) (not reached-goal))
-              (err {
-                code: (to-uint (unwrap-err-panic stacking-response)), 
-                message: "PoX contract stack-stx failed", 
-                }))
+              (err (to-uint (unwrap-err-panic stacking-response))))
 
           (map-set 
 
@@ -348,7 +344,6 @@
           (current-deposit  (get-current-deposit))
           (new-collateral-amount (+ current-deposit  amount))
           (promised-rewards (get pledged-payout (unwrap-panic cycle-info)))
-          (cycle-count (get cycle-count cycle-info))
           (cycle-expired (is-pool-expired cycle-id))
           (is-promise-fulfilled (>= new-collateral-amount promised-rewards))
     )
@@ -515,17 +510,17 @@
       (balance (stx-get-balance tx-sender)))
 
       (asserts! (>= amount minimum-delegator-stake) 
-        (err {code: ERROR-you-poor-lol, message: ""}))
+        (err ERROR-you-poor-lol))
       ;; you can't delegate your stx if the cycle expired after not
       ;; completing the amount required to start stacking
       (asserts! collateral-lock-valid
-        (err {code: ERROR-better-luck-next-time, message: ""}))
+        (err ERROR-better-luck-next-time))
       ;; The cycle must have existed before delegating
       (asserts! (is-some cycle-locked-amount) 
-        (err {code: ERROR-i-have-never-met-this-man-in-my-life, message: ""}))
+        (err ERROR-i-have-never-met-this-man-in-my-life))
       ;; Must have enough balance to delegate
       (asserts! (>= balance amount) 
-        (err {code: ERROR-you-poor-lol, message: ""}))
+        (err ERROR-you-poor-lol))
       (ok true)))
 
 
@@ -580,13 +575,12 @@
         ;; their stx to pad
         (and requires-padding can-safely-add-padding)) 
 
-      (err {code: ERROR-requires-padding, message: ""}))
+      (err ERROR-requires-padding))
 
     (asserts! (> max-possible-addition u0) 
-      (err {
-        message: "Pool reached goal",
-        code: ERROR-better-luck-next-time
-      }))
+      (err 
+        ERROR-better-luck-next-time
+      ))
     
       (let
         (
@@ -594,16 +588,8 @@
           (mint-result (ft-mint? stacked-stx max-possible-addition tx-sender))
         )
         (asserts! (is-ok stx-result) 
-          (err 
-            {
-              code: (unwrap-err-panic stx-result),
-              message: "Couldn't transfer funds from delegator" 
-            }))
+          (err (unwrap-err-panic stx-result)))
         (asserts! (is-ok mint-result) 
-          (err 
-            {
-              code: (unwrap-err-panic mint-result),
-              message: "Couldn't mint DDX" 
-            }))
+          (err  (unwrap-err-panic mint-result)))
     )
     (ok new-stake-info)))
