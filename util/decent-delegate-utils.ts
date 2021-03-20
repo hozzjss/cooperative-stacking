@@ -30,7 +30,7 @@ import path from 'path'
 config();
 
 
-const contractName = "decent-delegate-v6"
+const contractName = "decent-delegate-v1"
 const testContractName = "elaborate-indigo-bird"
 
 const network = new StacksMocknet();

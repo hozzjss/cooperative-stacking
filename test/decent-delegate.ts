@@ -9,7 +9,7 @@ import {
 import {DDXClient} from './ddx-client'
 
 describe("decent delegate contract test suite", () => {
-  let decentDelegateClient: Client;
+  let decentDelegateClient: DDXClient;
   let poxClient: Client;
   let provider: NativeClarityBinProvider;
 
@@ -112,16 +112,17 @@ describe("decent delegate contract test suite", () => {
 
 
     it('should allow stacker to deposit after stacking starts', async () => {
+      await decentDelegateClient.mineBlocks(200)
       const tx = decentDelegateClient.createTransaction({
         method: {
-          name: 'is-new-delegator',
-          args: []
+          name: 'deposit-to-collateral',
+          args: ['u7500000000']
         },
       })
       tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
       
-      // const result =  await decentDelegateClient.submitTransaction(tx)
-      // console.log(Result.unwrap(result))
+      const result =  await decentDelegateClient.submitTransaction(tx)
+      console.log(Result.unwrap(result))
     })
 
     
