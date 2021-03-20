@@ -6,8 +6,8 @@
 
 ;; TODO: change this when changing to mainnet
 ;; (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
-;; (impl-trait .sip-10-ft-standard.ft-trait)
 
+(impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
 
 ;; this token would be awarded at the end of each successful cycle
 ;; and would be taken away if the cycle failed to produce the promised STX
@@ -419,30 +419,11 @@
 
 ;; I know I know
 (define-private (set-deposit (deposited-collateral uint))
-  (map-set stacking-offer-details
+  (map-set stacking-offer-details 
     {cycle: (get-current-cycle-id)}
     (merge 
       (unwrap-panic (get-cycle (get-current-cycle-id)))
       { deposited-collateral: deposited-collateral,})))
-
-
-;; (define-private (set-deposit (deposited-collateral uint))
-;;   (let ((cycle-info (unwrap-panic (get-cycle (get-current-cycle-id)))))
-;;     (map-set stacking-offer-details 
-;;     {cycle: (get-next-cycle-id)}
-;;       { 
-;;         deposited-collateral: deposited-collateral,
-;;         pledged-payout: (get pledged-payout cycle-info),
-;;         minimum-delegator-stake: (get minimum-delegator-stake cycle-info),
-;;         cycle-count: (get cycle-count cycle-info),
-;;         collateral: (get collateral cycle-info),
-;;         lock-collateral-period: (get lock-collateral-period cycle-info),
-;;         lock-started-at: (get lock-started-at cycle-info),
-;;         total-required-stake: (get total-required-stake cycle-info),
-;;         pox-address: (get pox-address cycle-info),
-;;       }
-;;       )))
-
 
 ;; This should make stacked stx liquid
 
