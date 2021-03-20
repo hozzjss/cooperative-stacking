@@ -147,8 +147,8 @@ const allowContractCaller = async () => {
 
 
 // deployContract()
-// createStackingPool();
+createStackingPool();
 // delegate()
-deposit()
+// deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();

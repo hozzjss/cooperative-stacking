@@ -77,7 +77,6 @@
   {delegator: principal, cycle: uint} 
   {
     did-withdraw-rewards: bool,
-    did-withdraw-stake: bool,
   })
 
 (define-map delegator-stx-vault 
@@ -190,6 +189,19 @@
     )
     (ok new-stake-info)))
 
+
+;; I know I know
+(define-private (set-deposit (deposited-collateral uint))
+  (map-set stacking-offer-details 
+    {cycle: (get-current-cycle-id)}
+    (merge 
+      (unwrap-panic (get-cycle (get-current-cycle-id)))
+      { deposited-collateral: deposited-collateral,})))
+
+
+(define-private (contract-stx? (amount uint) (recipient principal)) 
+  (as-contract (stx-transfer? amount tx-sender recipient)))
+
 ;; Readonly functions
 ;;
 
@@ -240,15 +252,6 @@
 
 (define-read-only (reputation-no-mo!) 
   (is-eq (ft-get-supply decent-delegate-reputation) u0))
-
-
-;; I know I know
-(define-private (set-deposit (deposited-collateral uint))
-  (map-set stacking-offer-details 
-    {cycle: (get-current-cycle-id)}
-    (merge 
-      (unwrap-panic (get-cycle (get-current-cycle-id)))
-      { deposited-collateral: deposited-collateral,})))
 
 
 
@@ -314,11 +317,6 @@
 (define-read-only (get-cycle-locked-amount (cycle-id uint)) 
   (map-get? cycle-stx-vault {cycle: cycle-id}))
 
-(define-read-only (get-did-withdraw-stake (cycle uint) (delegator principal)) 
-  (get did-withdraw-stake (unwrap-panic (get-delegator-info cycle delegator))))
-
-
-
 
 (define-read-only (is-past-cycle (cycle uint)) 
   (> (get-current-cycle-id) cycle))
@@ -350,6 +348,8 @@
 
 ;; Public Functions
 ;;
+
+
 
 (define-public (create-decent-pool
     (pledged-payout uint)
@@ -400,15 +400,9 @@
 
 (define-public (deposit-to-collateral (amount uint)) 
   (let 
-    ((balance (stx-get-balance tx-sender))) 
-
-    (asserts! (is-creator)
-      (err ERROR-this-aint-a-donation-box))
-
-    (asserts! (is-not-called-by-another-contract)
-      (err ERROR-ummm-this-is-a-PEOPLE-contract))
-
-    (asserts! (>= balance amount)
+    ((balance (stx-get-balance tx-sender)))
+    
+    (asserts! (and (>= balance amount) (> amount u0))
       (err ERROR-you-poor-lol))
 
     (asserts! (deposit amount)
@@ -436,7 +430,7 @@
     (asserts! (> reward-to-payout u0) 
       (err ERROR-you-poor-lol))
     (let (
-      (stx-result (as-contract (stx-transfer? reward-to-payout tx-sender delegator)))
+      (stx-result (contract-stx? reward-to-payout delegator))
     )
       (asserts! (is-ok stx-result)
         (err (unwrap-err-panic stx-result)))
@@ -447,7 +441,6 @@
         }
         {
           did-withdraw-rewards: true,
-          did-withdraw-stake: (get-did-withdraw-stake cycle delegator)
         })
       ;; have been deposited and still in the pox cycle
       ;; only the delegator themselves might request to redeem
@@ -462,7 +455,6 @@
 (define-public (withdraw-stake (cycle-id uint))
   (let ((stake-info (get-delegator-stake tx-sender))
     (delegator-info (get-delegator-info cycle-id tx-sender))
-    (delegator tx-sender)
     (stake (get locked-amount stake-info)))
     (asserts! (is-not-called-by-another-contract)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
@@ -472,7 +464,7 @@
       (err ERROR-you-poor-lol))
     (asserts!
         (and
-          (is-ok (as-contract (stx-transfer? stake tx-sender delegator)))
+          (is-ok (contract-stx? stake tx-sender))
           (is-ok (ft-burn? stacked-stx stake tx-sender)))
     (err ERROR-wtf-stacks!!!))
     (ok true)))
@@ -535,7 +527,7 @@
           (map-set 
             delegators 
             { delegator: tx-sender, cycle: cycle-id } 
-            { did-withdraw-rewards: false, did-withdraw-stake: false })
+            { did-withdraw-rewards: false })
           (map-set 
             delegator-stx-vault
             { delegator: tx-sender } 
@@ -572,6 +564,9 @@
       ;; here are your frozen tokens, have fun!
       (asserts! (is-ok (ft-transfer? stacked-stx amount from to)) 
         (err ERROR-you-poor-lol))
+
+      (asserts! (is-not-called-by-another-contract) 
+        (err ERROR-ummm-this-is-a-PEOPLE-contract))
       ;; now let's do some accounting
       ;; we are gonna transfer this much from your account
       ;; to your friend's account
@@ -601,7 +596,7 @@
 ;; stolen from jude
 
 (define-read-only (get-name)
-    (ok "Stacked-STX"))
+    (ok "Decent-Delegate-STX"))
 
 (define-read-only (get-symbol)
     (ok "DDX"))
@@ -613,7 +608,7 @@
     (ok (ft-get-balance stacked-stx user)))
 
 (define-read-only (get-total-supply)
-    (ok (stx-get-balance (as-contract tx-sender))))
+    (ok (ft-get-supply stacked-stx)))
 
 (define-read-only (get-token-uri)
     (ok (some (var-get token-uri))))
