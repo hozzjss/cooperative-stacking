@@ -22,6 +22,8 @@
 ;; expired
 
 
+(impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
+
 (define-fungible-token decent-delegate-reputation u12)
 (ft-mint? decent-delegate-reputation u12 contract-address)
 
@@ -43,24 +45,46 @@
 (define-constant prepare-cycle-length u30)
 
 
+;; Backport of .pox's burn-height-to-reward-cycle
+(define-private (burn-height-to-reward-cycle (height uint))
+    (let (
+        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
+    )
+    (/ (- height (get first-burnchain-block-height pox-info)) (get reward-cycle-length pox-info)))
+)
 
-(define-constant ERROR-ummm-this-is-a-PEOPLE-contract 1000)
-(define-constant ERROR-you-poor-lol 1001)
-(define-constant ERROR-this-aint-a-donation-box 1002)
-(define-constant ERROR-wtf-stacks!!! 1003)
-(define-constant ERROR-not-my-president! 1004)
-(define-constant ERROR-didnt-we-just-go-through-this-the-other-day 1005)
-(define-constant ERROR-only-current-cycle-bro! 1006)
-(define-constant ERROR-i-have-never-met-this-man-in-my-life 1007)
-(define-constant ERROR-you-cant-get-any-awesomer 1008)
-(define-constant ERROR-you-had-12-chances-wtf! 1009)
-(define-constant ERROR-you-are-not-welcome-here 1010)
-(define-constant ERROR-this-number-is-a-disgrace!! 1011)
-(define-constant ERROR-better-luck-next-time 1012)
-(define-constant ERROR-we-need-a-lot-but-not-THAT-much 1013)
-(define-constant ERROR-requires-padding 1014)
-(define-constant ERROR-LOCKED-have-a-little-faith 1015)
-(define-constant ERROR-UNAUTHORIZED 1016)
+;; Backport of .pox's reward-cycle-to-burn-height
+(define-private (reward-cycle-to-burn-height (cycle uint))
+    (let (
+        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
+    )
+    (+ (get first-burnchain-block-height pox-info) (* cycle (get reward-cycle-length pox-info))))
+)
+
+;; What's the current PoX reward cycle?
+(define-public (current-pox-reward-cycle)
+    (ok (burn-height-to-reward-cycle burn-block-height)))
+
+
+
+
+(define-constant ERROR-ummm-this-is-a-PEOPLE-contract u1000)
+(define-constant ERROR-you-poor-lol u1001)
+(define-constant ERROR-this-aint-a-donation-box u1002)
+(define-constant ERROR-wtf-stacks!!! u1003)
+(define-constant ERROR-not-my-president! u1004)
+(define-constant ERROR-didnt-we-just-go-through-this-the-other-day u1005)
+(define-constant ERROR-only-current-cycle-bro! u1006)
+(define-constant ERROR-i-have-never-met-this-man-in-my-life u1007)
+(define-constant ERROR-you-cant-get-any-awesomer u1008)
+(define-constant ERROR-you-had-12-chances-wtf! u1009)
+(define-constant ERROR-you-are-not-welcome-here u1010)
+(define-constant ERROR-this-number-is-a-disgrace!! u1011)
+(define-constant ERROR-better-luck-next-time u1012)
+(define-constant ERROR-we-need-a-lot-but-not-THAT-much u1013)
+(define-constant ERROR-requires-padding u1014)
+(define-constant ERROR-LOCKED-have-a-little-faith u1015)
+(define-constant ERROR-UNAUTHORIZED u1016)
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
 
@@ -290,14 +314,14 @@
                   (contract-call? 
                     'ST000000000000000000002AMW42H.pox 
                     stack-stx new-total-locked-amount pox-address burn-block-height cycle-count))
-                (err ERROR-wtf-stacks!!!)))
+                (err (to-int ERROR-wtf-stacks!!!))))
             (did-stack (is-ok stacking-response)))
           (asserts! 
 
             ;; it either stacked or didn't stack
             (or (and reached-goal did-stack) (not reached-goal))
               (err {
-                code: (unwrap-err-panic stacking-response), 
+                code: (to-uint (unwrap-err-panic stacking-response)), 
                 message: "PoX contract stack-stx failed", 
                 }))
 
@@ -394,15 +418,11 @@
   (let ((next-cycle (get-next-cycle-id)))
     (get-cycle-start next-cycle)))
 
-(define-read-only (get-cycle-start (cycle uint)) 
+(define-private (get-cycle-start (cycle uint)) 
   (if (<= cycle u1) first-burnchain-block-height
     (let ((fixed-height (- first-burnchain-block-height prepare-cycle-length))
         (cycle-start (+ fixed-height (* cycle u2100))))
       cycle-start)))
-
-(define-private (burn-height-to-reward-cycle (height uint))
-    (/ (- height first-burnchain-block-height) reward-cycle-length))
-
 
 (define-read-only (is-creator) 
   (is-eq stacker tx-sender))
@@ -479,7 +499,6 @@
           (map-set delegator-stx-vault {delegator: to} {locked-amount: recepient-new-balance})
           (ok true)
         )
-        
     )
 )
 
@@ -508,7 +527,7 @@
     (ok (stx-get-balance (as-contract tx-sender))))
 
 (define-read-only (get-token-uri)
-    (ok (var-get token-uri)))
+    (ok (some (var-get token-uri))))
 
 
 (define-read-only (delegate-assertions (amount uint))

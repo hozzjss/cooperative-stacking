@@ -11,6 +11,7 @@ import {DDXClient} from './ddx-client'
 describe("decent delegate contract test suite", () => {
   let decentDelegateClient: DDXClient;
   let poxClient: Client;
+  let ftTraitClient: Client;
   let provider: NativeClarityBinProvider;
 
   before(async () => {
@@ -23,12 +24,15 @@ describe("decent delegate contract test suite", () => {
 
     decentDelegateClient = new DDXClient(provider);
     poxClient = new Client("ST000000000000000000002AMW42H.pox", "pox", provider);
+    ftTraitClient = new Client("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard", "sip-10-ft-standard", provider);
   });
 
   describe("Best case scenarios", () => {
     before(async () => {
       await poxClient.checkContract();
       await poxClient.deployContract();
+      await ftTraitClient.checkContract();
+      await ftTraitClient.deployContract();
       await decentDelegateClient.checkContract();
       const result = await decentDelegateClient.deployContract();
       console.log({deploy: Result.unwrap(result)})
@@ -88,7 +92,7 @@ describe("decent delegate contract test suite", () => {
       tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
 
       const result = await decentDelegateClient.submitTransaction(tx);
-
+      
       expect(Result.extract(result).success).equal(false, "Minimum required");
     })
 
@@ -125,6 +129,19 @@ describe("decent delegate contract test suite", () => {
       console.log(Result.unwrap(result))
     })
 
+
+    it('should get the current reward cycle', async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'current-pox-reward-cycle',
+          args: []
+        }
+      });
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      const result = await decentDelegateClient.submitTransaction(tx);
+
+      console.log(Result.unwrap(result))
+    })
     
     // it("it should stack", async () => {
     //   const tx = poxClient.createTransaction({
