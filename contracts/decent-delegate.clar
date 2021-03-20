@@ -5,42 +5,8 @@
 ;; expired
 
 ;; TODO: change this when changing to mainnet
-;; (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
-
 (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
-
-;; this token would be awarded at the end of each successful cycle
-;; and would be taken away if the cycle failed to produce the promised STX
-;; in the same way this would be for a delegate who failed to
-;; deliver on their pledge
-;; the decent token is burnt
-;; a delegate gets only 12 chances of being a decent person
-(define-fungible-token decent-delegate-reputation u12)
-(ft-mint? decent-delegate-reputation u12 contract-address)
-
-
-;; Stolen from XVerse
-;; Backport of .pox's burn-height-to-reward-cycle
-(define-private (burn-height-to-reward-cycle (height uint))
-    (let (
-        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
-    )
-    (/ (- height (get first-burnchain-block-height pox-info)) (get reward-cycle-length pox-info)))
-)
-
-;; Backport of .pox's reward-cycle-to-burn-height
-(define-private (reward-cycle-to-burn-height (cycle uint))
-    (let (
-        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
-    )
-    (+ (get first-burnchain-block-height pox-info) (* cycle (get reward-cycle-length pox-info))))
-)
-
-;; What's the current PoX reward cycle?
-(define-private (get-current-cycle-id)
-    (burn-height-to-reward-cycle burn-block-height))
-
-
+;; (impl-trait .sip-10-ft-standard.ft-trait)
 
 
 (define-constant ERROR-ummm-this-is-a-PEOPLE-contract u1000)
@@ -75,6 +41,19 @@
 
 (define-constant lock-collateral-period-min u200)
 
+
+
+;; this token would be awarded at the end of each successful cycle
+;; and would be taken away if the cycle failed to produce the promised STX
+;; in the same way this would be for a delegate who failed to
+;; deliver on their pledge
+;; the decent token is burnt
+;; a delegate gets only 12 chances of being a decent person
+(define-fungible-token decent-delegate-reputation u12)
+(ft-mint? decent-delegate-reputation u12 contract-address)
+
+
+
 (define-map stacking-offer-details 
   {
     cycle: uint
@@ -94,23 +73,291 @@
 (define-map cycle-stx-vault {cycle: uint} {locked-amount: uint, is-stacked: bool})
 
 
-(define-map delegators 
+(define-map delegators
   {delegator: principal, cycle: uint} 
   {
     did-withdraw-rewards: bool,
+    did-withdraw-stake: bool,
   })
 
 (define-map delegator-stx-vault 
-  {delegator: principal} 
+  {delegator: principal}
   {
     locked-amount: uint,
   })
+
+;; Stolen from XVerse
+;; Backport of .pox's burn-height-to-reward-cycle
+(define-private (burn-height-to-reward-cycle (height uint))
+    (let (
+        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
+    )
+    (/ (- height (get first-burnchain-block-height pox-info)) (get reward-cycle-length pox-info)))
+)
+
+;; Backport of .pox's reward-cycle-to-burn-height
+(define-private (reward-cycle-to-burn-height (cycle uint))
+    (let (
+        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
+    )
+    (+ (get first-burnchain-block-height pox-info) (* cycle (get reward-cycle-length pox-info))))
+)
+
+;; What's the current PoX reward cycle?
+(define-private (get-current-cycle-id)
+    (burn-height-to-reward-cycle burn-block-height))
+
+
+(define-private (deposit (amount uint)) 
+  (is-ok (stx-transfer? amount tx-sender contract-address)))
+
+
+(define-private (increase-deposit (amount uint)) 
+  (let (
+        (cycle-id (get-current-cycle-id))
+        (cycle-info (get-cycle cycle-id))
+        (reputation (ft-get-balance decent-delegate-reputation stacker))
+        (no-more-rep (reputation-no-mo!))
+        (cycle-exists (is-some cycle-info)))
+    (asserts! cycle-exists (err ERROR-i-have-never-met-this-man-in-my-life))
+    (let (
+          (current-deposit  (get-current-deposit))
+          (new-collateral-amount (+ current-deposit  amount))
+          (promised-rewards (get pledged-payout (unwrap-panic cycle-info)))
+          (cycle-expired (is-past-cycle cycle-id))
+          (is-promise-fulfilled (>= new-collateral-amount promised-rewards))
+    )
+    (asserts! (not cycle-expired) 
+      (err ERROR-didnt-we-just-go-through-this-the-other-day))
+    (set-deposit new-collateral-amount)
+    (if is-promise-fulfilled
+      (begin
+        (asserts! (< reputation u12) 
+          (err ERROR-you-cant-get-any-awesomer))
+        (asserts! (not no-more-rep)
+          (err ERROR-you-had-12-chances-wtf!))
+        (asserts! (is-ok (award-reputation))
+          (err ERROR-wtf-stacks!!!))
+        (ok true))
+      (ok true)))))
+
+(define-private (award-reputation) 
+  (let ((supply (ft-get-balance decent-delegate-reputation contract-address)))
+    (if (> supply u0)
+      (ft-transfer? decent-delegate-reputation u1 contract-address stacker) 
+      (ok true))))    
+
+
+(define-private (lock-and-mint-DDX (amount uint) (sacrifice-stx-for-padding bool))
+  (let (
+      (cycle-info (unwrap-panic (get-cycle (get-next-cycle-id))))
+      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
+      ;; you can add the difference if you've contributed before
+      (can-safely-add-padding (or sacrifice-stx-for-padding (not (is-new-delegator))))
+      ;; Reach goal after getting the amount of stacks required before starting
+      
+      (new-stake-info (get-new-stake amount))
+      ;; How much stx are required to fulfill stacking
+      (max-possible-addition (get max-possible-addition new-stake-info))
+      ;; Sometimes a small fraction is required, a delegator
+      ;; or the stacker might add that small fraction
+      (requires-padding (< max-possible-addition minimum-delegator-stake)))
+    ;; stacker would then append padding and start stacking
+    (asserts!
+      (or
+        ;; it either does not require padding
+        (not requires-padding)
+        ;; or requires and the delegator chose to sacrifice
+        ;; their stx to pad
+        (and requires-padding can-safely-add-padding)) 
+
+      (err ERROR-requires-padding))
+
+    (asserts! (> max-possible-addition u0) 
+      (err 
+        ERROR-better-luck-next-time
+      ))
+    
+      (let
+        (
+          (stx-result (stx-transfer? max-possible-addition tx-sender contract-address))
+          (mint-result (ft-mint? stacked-stx max-possible-addition tx-sender))
+        )
+        (asserts! (is-ok stx-result) 
+          (err (unwrap-err-panic stx-result)))
+        (asserts! (is-ok mint-result) 
+          (err  (unwrap-err-panic mint-result)))
+    )
+    (ok new-stake-info)))
+
+;; Readonly functions
+;;
+
+(define-read-only (get-next-cycle-info) 
+  (get-cycle (get-next-cycle-id)))
+
+(define-read-only (get-next-cycle-id)
+  (+ (burn-height-to-reward-cycle burn-block-height) u1))
+
+(define-read-only (get-next-pox-start) 
+  (let ((next-cycle (get-next-cycle-id)))
+    (reward-cycle-to-burn-height next-cycle)))
+
+;; (define-private (get-cycle-start (cycle uint)) 
+;;   (if (<= cycle u1) first-burnchain-block-height
+;;     (let ((fixed-height (- first-burnchain-block-height prepare-cycle-length))
+;;         (cycle-start (+ fixed-height (* cycle u2100))))
+;;       cycle-start)))
+
+(define-read-only (is-creator) 
+  (is-eq stacker tx-sender))
+
+(define-read-only (is-not-called-by-another-contract) 
+  (is-eq contract-caller tx-sender))
+
+;; what rewards you could get right now
+;; and what rewards you could get later
+(define-read-only (calculate-cycle-rewards (cycle uint) (personal-stake uint) (total-stake uint)) 
+  (let (
+    (current-cycle-info (get-cycle cycle))
+  )
+    (asserts! (is-some current-cycle-info) 
+      (err ERROR-i-have-never-met-this-man-in-my-life))
+    (let (
+          (info-unpacked (unwrap-panic current-cycle-info))
+          (pledged-payout (get pledged-payout info-unpacked))
+          (current-funds (get deposited-collateral info-unpacked))
+          ;; Sometimes the payout would be bigger than promised
+          ;; And sometimes that payout comes sooner not later
+          (largest-payout-pool (if (> current-funds pledged-payout) current-funds pledged-payout))
+          (rewards-if-patient (/ (* personal-stake largest-payout-pool) total-stake))
+          (rewards-if-impatient (/ (* personal-stake current-funds) total-stake))
+        )
+    (ok {rewards-if-patient: rewards-if-patient, rewards-if-impatient: rewards-if-impatient}))))
+
+(define-read-only (get-cycle (cycle uint)) 
+  (map-get? stacking-offer-details {cycle: cycle}))
+
+(define-read-only (reputation-no-mo!) 
+  (is-eq (ft-get-supply decent-delegate-reputation) u0))
+
+
+;; I know I know
+(define-private (set-deposit (deposited-collateral uint))
+  (map-set stacking-offer-details 
+    {cycle: (get-current-cycle-id)}
+    (merge 
+      (unwrap-panic (get-cycle (get-current-cycle-id)))
+      { deposited-collateral: deposited-collateral,})))
+
+
+
+
+(define-read-only (delegate-assertions (amount uint))
+  (let 
+      ((cycle-id (get-next-cycle-id))
+      (cycle-info (unwrap-panic (get-cycle cycle-id)))
+      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
+      (lock-collateral-period (get lock-collateral-period cycle-info))
+      (lock-started-at (get lock-started-at cycle-info))
+      (lock-expires-at (+ lock-started-at lock-collateral-period))
+      (collateral-lock-valid (< block-height lock-expires-at))
+      (cycle-locked-amount (get-cycle-locked-amount cycle-id))
+      (balance (stx-get-balance tx-sender)))
+
+      (asserts! (>= amount minimum-delegator-stake) 
+        (err ERROR-you-poor-lol))
+      ;; you can't delegate your stx if the cycle expired after not
+      ;; completing the amount required to start stacking
+      (asserts! collateral-lock-valid
+        (err ERROR-better-luck-next-time))
+      ;; The cycle must have existed before delegating
+      (asserts! (is-some cycle-locked-amount) 
+        (err ERROR-i-have-never-met-this-man-in-my-life))
+      ;; Must have enough balance to delegate
+      (asserts! (>= balance amount) 
+        (err ERROR-you-poor-lol))
+      (ok true)))
+
+
+(define-read-only (get-delegator-stake (delegator principal))
+  (default-to {locked-amount: u0} (map-get? delegator-stx-vault {delegator: delegator})))
+
+(define-read-only (is-new-delegator)
+  (is-eq u0 (get locked-amount (get-delegator-stake tx-sender))))
+
+(define-read-only (get-new-stake (amount uint))
+  (let (
+    (cycle-id (get-next-cycle-id))
+    (cycle-info (unwrap-panic (get-cycle cycle-id)))
+    (cycle-locked-amount (get locked-amount (unwrap-panic (get-cycle-locked-amount cycle-id))))
+    (total-required-stake (get total-required-stake cycle-info))
+    (stake (get-delegator-stake tx-sender))
+    ;; How much stx are required to fulfill stacking
+    (remaining-required-stake (- total-required-stake cycle-locked-amount))
+    ;; The max possible STX a delegator can put in
+    ;; this would make it possible for fixed sets of
+    ;; collateralized pools
+    ;; so that the distribution is fair
+    (max-possible-addition 
+
+      (if (> amount remaining-required-stake) remaining-required-stake amount))
+
+    ;; get the old locked balance
+    (delegator-sum-stake 
+          (+ max-possible-addition (get locked-amount stake))))
+    {delegator-sum-stake: delegator-sum-stake, max-possible-addition: max-possible-addition}))
+
+
+(define-read-only (get-current-deposit) 
+  (get deposited-collateral (unwrap-panic (get-cycle (get-current-cycle-id)))))
+(define-read-only (get-cycle-locked-amount (cycle-id uint)) 
+  (map-get? cycle-stx-vault {cycle: cycle-id}))
+
+(define-read-only (get-did-withdraw-stake (cycle uint) (delegator principal)) 
+  (get did-withdraw-stake (unwrap-panic (get-delegator-info cycle delegator))))
+
+
+
+
+(define-read-only (is-past-cycle (cycle uint)) 
+  (> (get-current-cycle-id) cycle))
+
+(define-read-only (get-delegator-info (cycle-id uint) (delegator principal)) 
+  (map-get? delegators {cycle: cycle-id, delegator: delegator}))
+
+(define-read-only (is-cycle-expired (cycle-id uint)) 
+  (let 
+    ((cycle-info (unwrap-panic (get-cycle cycle-id)))
+    (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
+    (lock-collateral-period (get lock-collateral-period cycle-info))
+    (lock-started-at (get lock-started-at cycle-info))
+    (total-required-stake (get total-required-stake cycle-info))
+    (collateral-lock-expired (>= block-height (+ lock-started-at lock-collateral-period)))
+    (cycle-locked-amount (get-cycle-locked-amount cycle-id)))
+  (and collateral-lock-expired (< (get locked-amount (unwrap-panic cycle-locked-amount)) total-required-stake)))
+)
+
+
+
+
+;; util
+;; MY EYES MY EYES!!!
+;; ustx might have greater value in the future
+;; now it's just a nuisance of many many zeroes
+(define-read-only (to-ustx (amount uint)) (* amount u1000000))
+
+
+;; Public Functions
+;;
 
 (define-public (create-decent-pool
     (pledged-payout uint)
     (minimum-delegator-stake uint)
     (cycle-count uint)
     (collateral uint)
+    ;; TODO: use cycle expiry instead
+    ;; when it would be not feasible to stack
     (lock-collateral-period uint)
     (total-required-stake uint)
     (pox-address {hashbytes: (buff 20), version: (buff 1)}))
@@ -150,9 +397,6 @@
       })))
   )
 
-(define-read-only (get-cycle-locked-amount (cycle-id uint)) 
-  (map-get? cycle-stx-vault {cycle: cycle-id}))
-
 
 (define-public (deposit-to-collateral (amount uint)) 
   (let 
@@ -178,67 +422,57 @@
 ;; you won't be eligible to get the rest of the rewards
 ;; they would be reserved for the stacker
 (define-public (redeem-reward (cycle uint))
-  ;; if within the cycle when not enough funds 
+  ;; if within the cycle when not enough funds
   (let ((delegator tx-sender)
         (delegator-vault-info (get-delegator-stake delegator))
         (locked-amount (get locked-amount delegator-vault-info))
         (cycle-info (unwrap-panic (get-cycle cycle)))
         (total-required-stake (get total-required-stake cycle-info))
-        (was-patient (is-pool-expired cycle))
+        (was-patient (is-past-cycle cycle))
         (reward-info (unwrap-panic (calculate-cycle-rewards cycle locked-amount total-required-stake)))
         (patient-reward (get rewards-if-patient reward-info))
         (impatient-reward (get rewards-if-impatient reward-info))
         (reward-to-payout (if was-patient patient-reward impatient-reward)))
     (asserts! (> reward-to-payout u0) 
       (err ERROR-you-poor-lol))
-    (asserts! (is-ok (stx-transfer? reward-to-payout contract-address delegator))
-      (err ERROR-wtf-stacks!!!))
-    (map-set delegators 
-      {
-        delegator: delegator, 
-        cycle: cycle
-      }
-      {
-        did-withdraw-rewards: true,
-      })
-    ;; have been deposited and still in the pox cycle
-    ;; only the delegator themselves might request to redeem
-    ;; if the cycle ended the delegate might call this to payout
-    ;; the delegator
-    (ok reward-info))
+    (let (
+      (stx-result (as-contract (stx-transfer? reward-to-payout tx-sender delegator)))
+    )
+      (asserts! (is-ok stx-result)
+        (err (unwrap-err-panic stx-result)))
+      (map-set delegators 
+        {
+          delegator: delegator, 
+          cycle: cycle
+        }
+        {
+          did-withdraw-rewards: true,
+          did-withdraw-stake: (get-did-withdraw-stake cycle delegator)
+        })
+      ;; have been deposited and still in the pox cycle
+      ;; only the delegator themselves might request to redeem
+      ;; if the cycle ended the delegate might call this to payout
+      ;; the delegator
+      (ok reward-info))
+    )
   )
 
-(define-read-only (is-pool-expired (cycle uint)) 
-  (> (get-current-cycle-id) cycle))
 
-(define-read-only (get-delegator-info (cycle-id uint) (delegator principal)) 
-  (map-get? delegators {cycle: cycle-id, delegator: delegator}))
-
-(define-read-only (is-cycle-expired (cycle-id uint)) 
-  (let 
-    ((cycle-info (unwrap-panic (get-cycle cycle-id)))
-    (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
-    (lock-collateral-period (get lock-collateral-period cycle-info))
-    (lock-started-at (get lock-started-at cycle-info))
-    (total-required-stake (get total-required-stake cycle-info))
-    (collateral-lock-expired (>= block-height (+ lock-started-at lock-collateral-period)))
-    (cycle-locked-amount (get-cycle-locked-amount cycle-id)))
-  (and collateral-lock-expired (< (get locked-amount (unwrap-panic cycle-locked-amount)) total-required-stake)))
-)
 
 (define-public (withdraw-stake (cycle-id uint))
   (let ((stake-info (get-delegator-stake tx-sender))
     (delegator-info (get-delegator-info cycle-id tx-sender))
+    (delegator tx-sender)
     (stake (get locked-amount stake-info)))
     (asserts! (is-not-called-by-another-contract)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
-    (asserts! (is-cycle-expired cycle-id)
+    (asserts! (is-past-cycle cycle-id)
       (err ERROR-LOCKED-have-a-little-faith))
     (asserts! (> stake u0) 
       (err ERROR-you-poor-lol))
     (asserts!
         (and
-          (is-ok (stx-transfer? stake contract-address tx-sender))
+          (is-ok (as-contract (stx-transfer? stake tx-sender delegator)))
           (is-ok (ft-burn? stacked-stx stake tx-sender)))
     (err ERROR-wtf-stacks!!!))
     (ok true)))
@@ -301,7 +535,7 @@
           (map-set 
             delegators 
             { delegator: tx-sender, cycle: cycle-id } 
-            { did-withdraw-rewards: false, })
+            { did-withdraw-rewards: false, did-withdraw-stake: false })
           (map-set 
             delegator-stx-vault
             { delegator: tx-sender } 
@@ -317,114 +551,7 @@
             })))))
 
 
-
-;; util
-;; MY EYES MY EYES!!!
-;; ustx might have greater value in the future
-;; now it's just a nuisance of many many zeroes
-(define-read-only (to-ustx (amount uint)) (* amount u1000000))
-
-(define-private (deposit (amount uint)) 
-  (is-ok (stx-transfer? amount tx-sender contract-address)))
-
-(define-read-only (get-current-deposit) 
-  (get deposited-collateral (unwrap-panic (get-cycle (get-current-cycle-id)))))
-
-
-
-(define-private (increase-deposit (amount uint)) 
-  (let (
-        (cycle-id (get-current-cycle-id))
-        (cycle-info (get-cycle cycle-id))
-        (reputation (ft-get-balance decent-delegate-reputation stacker))
-        (no-more-rep (reputation-no-mo!))
-        (cycle-exists (is-some cycle-info)))
-    (asserts! cycle-exists (err ERROR-i-have-never-met-this-man-in-my-life))
-    (let (
-          (current-deposit  (get-current-deposit))
-          (new-collateral-amount (+ current-deposit  amount))
-          (promised-rewards (get pledged-payout (unwrap-panic cycle-info)))
-          (cycle-expired (is-pool-expired cycle-id))
-          (is-promise-fulfilled (>= new-collateral-amount promised-rewards))
-    )
-    (asserts! (not cycle-expired) 
-      (err ERROR-didnt-we-just-go-through-this-the-other-day))
-    (set-deposit new-collateral-amount)
-    (if is-promise-fulfilled
-      (begin
-        (asserts! (< reputation u12) 
-          (err ERROR-you-cant-get-any-awesomer))
-        (asserts! (not no-more-rep)
-          (err ERROR-you-had-12-chances-wtf!))
-        (asserts! (is-ok (award-reputation))
-          (err ERROR-wtf-stacks!!!))
-        (ok true))
-      (ok true)))))
-
-(define-private (award-reputation) 
-  (let ((supply (ft-get-balance decent-delegate-reputation contract-address)))
-    (if (> supply u0)
-      (ft-transfer? decent-delegate-reputation u1 contract-address stacker) 
-      (ok true))))    
-
-(define-read-only (get-next-cycle-info) 
-  (get-cycle (get-next-cycle-id)))
-
-(define-read-only (get-next-cycle-id)
-  (+ (burn-height-to-reward-cycle burn-block-height) u1))
-
-;; (define-read-only (get-current-cycle-id) 
-;;   (- (get-next-cycle-id) u1))
-
-
-(define-read-only (get-next-pox-start) 
-  (let ((next-cycle (get-next-cycle-id)))
-    (reward-cycle-to-burn-height next-cycle)))
-
-;; (define-private (get-cycle-start (cycle uint)) 
-;;   (if (<= cycle u1) first-burnchain-block-height
-;;     (let ((fixed-height (- first-burnchain-block-height prepare-cycle-length))
-;;         (cycle-start (+ fixed-height (* cycle u2100))))
-;;       cycle-start)))
-
-(define-read-only (is-creator) 
-  (is-eq stacker tx-sender))
-
-(define-read-only (is-not-called-by-another-contract) 
-  (is-eq contract-caller tx-sender))
-
-;; what rewards you could get right now
-;; and what rewards you could get later
-(define-read-only (calculate-cycle-rewards (cycle uint) (personal-stake uint) (total-stake uint)) 
-  (let (
-        (current-cycle-info (get-cycle cycle))
-  )
-    (asserts! (is-some current-cycle-info) 
-      (err ERROR-i-have-never-met-this-man-in-my-life))
-    (let (
-          (info-unpacked (unwrap-panic current-cycle-info))
-          (pledged-payout (get pledged-payout info-unpacked))
-          (current-funds (get deposited-collateral info-unpacked))
-          (rewards-if-patient (/ (* personal-stake pledged-payout) total-stake))
-          (rewards-if-impatient (/ (* personal-stake current-funds) total-stake))
-        )
-    (ok {rewards-if-patient: rewards-if-patient, rewards-if-impatient: rewards-if-impatient}))))
-
-(define-read-only (get-cycle (cycle uint)) 
-  (map-get? stacking-offer-details {cycle: cycle}))
-
-(define-read-only (reputation-no-mo!) 
-  (is-eq (ft-get-supply decent-delegate-reputation) u0))
-
-
-;; I know I know
-(define-private (set-deposit (deposited-collateral uint))
-  (map-set stacking-offer-details 
-    {cycle: (get-current-cycle-id)}
-    (merge 
-      (unwrap-panic (get-cycle (get-current-cycle-id)))
-      { deposited-collateral: deposited-collateral,})))
-
+;;; DDX Section
 ;; This should make stacked stx liquid
 
 (define-fungible-token stacked-stx)
@@ -490,101 +617,3 @@
 
 (define-read-only (get-token-uri)
     (ok (some (var-get token-uri))))
-
-
-(define-read-only (delegate-assertions (amount uint))
-  (let 
-      ((cycle-id (get-next-cycle-id))
-      (cycle-info (unwrap-panic (get-cycle cycle-id)))
-      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
-      (lock-collateral-period (get lock-collateral-period cycle-info))
-      (lock-started-at (get lock-started-at cycle-info))
-      (lock-expires-at (+ lock-started-at lock-collateral-period))
-      (collateral-lock-valid (< block-height lock-expires-at))
-      (cycle-locked-amount (get-cycle-locked-amount cycle-id))
-      (balance (stx-get-balance tx-sender)))
-
-      (asserts! (>= amount minimum-delegator-stake) 
-        (err ERROR-you-poor-lol))
-      ;; you can't delegate your stx if the cycle expired after not
-      ;; completing the amount required to start stacking
-      (asserts! collateral-lock-valid
-        (err ERROR-better-luck-next-time))
-      ;; The cycle must have existed before delegating
-      (asserts! (is-some cycle-locked-amount) 
-        (err ERROR-i-have-never-met-this-man-in-my-life))
-      ;; Must have enough balance to delegate
-      (asserts! (>= balance amount) 
-        (err ERROR-you-poor-lol))
-      (ok true)))
-
-
-(define-read-only (get-delegator-stake (delegator principal))
-  (default-to {locked-amount: u0} (map-get? delegator-stx-vault {delegator: delegator})))
-
-(define-read-only (is-new-delegator)
-  (is-eq u0 (get locked-amount (get-delegator-stake tx-sender))))
-
-(define-read-only (get-new-stake (amount uint))
-  (let (
-    (cycle-id (get-next-cycle-id))
-    (cycle-info (unwrap-panic (get-cycle cycle-id)))
-    (cycle-locked-amount (get locked-amount (unwrap-panic (get-cycle-locked-amount cycle-id))))
-    (total-required-stake (get total-required-stake cycle-info))
-    (stake (get-delegator-stake tx-sender))
-    ;; How much stx are required to fulfill stacking
-    (remaining-required-stake (- total-required-stake cycle-locked-amount))
-    ;; The max possible STX a delegator can put in
-    ;; this would make it possible for fixed sets of
-    ;; collateralized pools
-    ;; so that the distribution is fair
-    (max-possible-addition 
-
-      (if (> amount remaining-required-stake) remaining-required-stake amount))
-
-    ;; get the old locked balance
-    (delegator-sum-stake 
-          (+ max-possible-addition (get locked-amount stake))))
-    {delegator-sum-stake: delegator-sum-stake, max-possible-addition: max-possible-addition}))
-
-(define-private (lock-and-mint-DDX (amount uint) (sacrifice-stx-for-padding bool))
-  (let (
-      (cycle-info (unwrap-panic (get-cycle (get-next-cycle-id))))
-      (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
-      ;; you can add the difference if you've contributed before
-      (can-safely-add-padding (or sacrifice-stx-for-padding (not (is-new-delegator))))
-      ;; Reach goal after getting the amount of stacks required before starting
-      
-      (new-stake-info (get-new-stake amount))
-      ;; How much stx are required to fulfill stacking
-      (max-possible-addition (get max-possible-addition new-stake-info))
-      ;; Sometimes a small fraction is required, a delegator
-      ;; or the stacker might add that small fraction
-      (requires-padding (< max-possible-addition minimum-delegator-stake)))
-    ;; stacker would then append padding and start stacking
-    (asserts!
-      (or
-        ;; it either does not require padding
-        (not requires-padding)
-        ;; or requires and the delegator chose to sacrifice
-        ;; their stx to pad
-        (and requires-padding can-safely-add-padding)) 
-
-      (err ERROR-requires-padding))
-
-    (asserts! (> max-possible-addition u0) 
-      (err 
-        ERROR-better-luck-next-time
-      ))
-    
-      (let
-        (
-          (stx-result (stx-transfer? max-possible-addition tx-sender contract-address))
-          (mint-result (ft-mint? stacked-stx max-possible-addition tx-sender))
-        )
-        (asserts! (is-ok stx-result) 
-          (err (unwrap-err-panic stx-result)))
-        (asserts! (is-ok mint-result) 
-          (err  (unwrap-err-panic mint-result)))
-    )
-    (ok new-stake-info)))
