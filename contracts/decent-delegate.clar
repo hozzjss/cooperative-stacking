@@ -142,7 +142,7 @@
         minimum-delegator-stake: minimum-delegator-stake,
         cycle-count: cycle-count,
         collateral: collateral,
-        deposited-collateral: u0,
+        deposited-collateral: collateral,
         lock-collateral-period: lock-collateral-period,
         lock-started-at: block-height,
         total-required-stake: total-required-stake,
