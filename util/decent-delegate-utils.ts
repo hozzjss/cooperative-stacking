@@ -94,14 +94,14 @@ const delegate = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(86e12),
+      uintCV(20e12),
       trueCV()
     ],
     functionName: 'delegate',
     senderKey: process.env.KEY as string,
     network: network,
     postConditionMode: PostConditionMode.Allow,
-    fee: new BN(10000000)
+    // fee: new BN(10000000)
   });
   const result = await broadcastTransaction(tx, network);
   const json = result;
@@ -114,12 +114,12 @@ const deposit = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(7500e6),
+      uintCV(500e6),
     ],
     functionName: 'deposit-to-collateral',
     senderKey: process.env.KEY as string,
     network: network,
-    fee: new BN(100000000),
+    // fee: new BN(100000000),
     postConditionMode: PostConditionMode.Allow,
   });
   const result = await broadcastTransaction(tx, network);

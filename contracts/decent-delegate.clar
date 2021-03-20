@@ -1,50 +1,25 @@
-;; this token would be awarded at the end of each successful cycle
-;; and would be taken away if the cycle failed to produce the promised STX
-;; in the same way this would be for a delegate who failed to
-;; deliver on their pledge
-;; the decent token is burnt
-;; a delegate gets only 12 chances of being a decent person
-
-
-;; (asserts! 
-;;   (is-ok 
-;;     (contract-call? 'ST000000000000000000002AMW42H.pox delegate-stx amount contract-address none none))
-;;   (err ERROR-wtf-stacks!!!))
-;; (asserts! 
-;;   (is-ok 
-;;     (contract-call? 'ST000000000000000000002AMW42H.pox 
-;;       delegate-stack-stx tx-sender amount pox-address burn-block-height cycle-count))
-;;   (err ERROR-wtf-stacks!!!))
 ;; now the contract would stack itself
 ;; instead of pox complications
 ;; this way if people wanted to take their funds after the cycle ends
 ;; or the cycle didn't reach its goal and the collateral-lock-period
 ;; expired
 
+;; TODO: change this when changing to mainnet
+;; (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
 
 (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
 
+;; this token would be awarded at the end of each successful cycle
+;; and would be taken away if the cycle failed to produce the promised STX
+;; in the same way this would be for a delegate who failed to
+;; deliver on their pledge
+;; the decent token is burnt
+;; a delegate gets only 12 chances of being a decent person
 (define-fungible-token decent-delegate-reputation u12)
 (ft-mint? decent-delegate-reputation u12 contract-address)
 
 
-
-
-;; TODO: NEVER FORGET THIS!!!
-;; MAINNET
-;; (define-constant first-burnchain-block-height u666050)
-;; (define-constant reward-cycle-length u2100)
-;; (define-constant prepare-cycle-length u100)
-;; TESTNET
-;; (define-constant reward-cycle-length u50)
-;; (define-constant first-burnchain-block-height u1931620)
-;; (define-constant prepare-cycle-length u10)
-;; MOCKNET
-(define-constant reward-cycle-length u150)
-(define-constant first-burnchain-block-height (if (< burn-block-height u1931620) u0 u1931620))
-(define-constant prepare-cycle-length u30)
-
-
+;; Stolen from XVerse
 ;; Backport of .pox's burn-height-to-reward-cycle
 (define-private (burn-height-to-reward-cycle (height uint))
     (let (
@@ -271,20 +246,16 @@
 
 
 (define-public (delegate (amount uint) (sacrifice-stx-for-padding bool))
-    (let 
-      ((cycle-id (get-next-cycle-id))
-      ;; (until-block-ht (get-cycle-start (+ cycle-id u1)))
-      ;; default to zero stake to avoid complications
-      
+    (let (
       (assertions (delegate-assertions amount)))
 
-    (asserts! (is-ok assertions) 
-      (err (unwrap-err-panic assertions)))
+      (asserts! (is-ok assertions) 
+        (err (unwrap-err-panic assertions)))
       
 
       (let 
-
         (
+          (cycle-id (get-next-cycle-id))
           (locked-amount (get locked-amount (unwrap-panic (get-cycle-locked-amount cycle-id))))
           ;; How much stx are required to fulfill stacking
           (lock-response (lock-and-mint-DDX amount sacrifice-stx-for-padding)))
@@ -297,13 +268,8 @@
             (cycle-info (unwrap-panic (get-cycle cycle-id)))
             (delegator-sum-stake (get delegator-sum-stake (unwrap-panic lock-response)))
             (max-possible-addition (get max-possible-addition (unwrap-panic lock-response)))
-            (lock-collateral-period (get lock-collateral-period cycle-info))
             (new-total-locked-amount (+ locked-amount max-possible-addition))
             (reached-goal (>= new-total-locked-amount (get total-required-stake cycle-info)))
-            (pox-address (get pox-address cycle-info))
-            (cycle-count (get cycle-count cycle-info))
-            (lock-started-at (get lock-started-at cycle-info))
-            (lock-expires-at (+ lock-started-at lock-collateral-period))
                   ;; This has preplexed me for a while now
             (stacking-response
               (if reached-goal
@@ -312,8 +278,12 @@
                 ;; (ok true)
                 (as-contract 
                   (contract-call? 
-                    'ST000000000000000000002AMW42H.pox 
-                    stack-stx new-total-locked-amount pox-address burn-block-height cycle-count))
+                    'ST000000000000000000002AMW42H.pox stack-stx 
+                      new-total-locked-amount 
+                      (get pox-address cycle-info)
+                      burn-block-height 
+                      (get cycle-count cycle-info)))
+
                 (err (to-int ERROR-wtf-stacks!!!))))
             (did-stack (is-ok stacking-response)))
           (asserts! 
@@ -343,9 +313,11 @@
           (ok
             {
               cycle: cycle-id,
+              locked-amount: new-total-locked-amount,
+              contract-balance: (stx-get-balance contract-address),
               delegator: tx-sender,
               delegated-amount: delegator-sum-stake,
-              time-until-cycle-expiry: lock-expires-at,
+              time-until-cycle-expiry: (+ (get lock-started-at cycle-info) (get lock-collateral-period cycle-info)),
             })))))
 
 
@@ -416,13 +388,13 @@
 
 (define-read-only (get-next-pox-start) 
   (let ((next-cycle (get-next-cycle-id)))
-    (get-cycle-start next-cycle)))
+    (reward-cycle-to-burn-height next-cycle)))
 
-(define-private (get-cycle-start (cycle uint)) 
-  (if (<= cycle u1) first-burnchain-block-height
-    (let ((fixed-height (- first-burnchain-block-height prepare-cycle-length))
-        (cycle-start (+ fixed-height (* cycle u2100))))
-      cycle-start)))
+;; (define-private (get-cycle-start (cycle uint)) 
+;;   (if (<= cycle u1) first-burnchain-block-height
+;;     (let ((fixed-height (- first-burnchain-block-height prepare-cycle-length))
+;;         (cycle-start (+ fixed-height (* cycle u2100))))
+;;       cycle-start)))
 
 (define-read-only (is-creator) 
   (is-eq stacker tx-sender))
@@ -610,14 +582,28 @@
 
       (err {code: ERROR-requires-padding, message: ""}))
 
-
-    (asserts!
-      (and
-        (is-ok (stx-transfer? max-possible-addition tx-sender contract-address))
-        (is-ok (ft-mint? stacked-stx max-possible-addition tx-sender)))
-    (err 
-      {
-        code: ERROR-wtf-stacks!!!,
-        message: "Couldn't transfer and convert funds from delegator" 
+    (asserts! (> max-possible-addition u0) 
+      (err {
+        message: "Pool reached goal",
+        code: ERROR-better-luck-next-time
       }))
+    
+      (let
+        (
+          (stx-result (stx-transfer? max-possible-addition tx-sender contract-address))
+          (mint-result (ft-mint? stacked-stx max-possible-addition tx-sender))
+        )
+        (asserts! (is-ok stx-result) 
+          (err 
+            {
+              code: (unwrap-err-panic stx-result),
+              message: "Couldn't transfer funds from delegator" 
+            }))
+        (asserts! (is-ok mint-result) 
+          (err 
+            {
+              code: (unwrap-err-panic mint-result),
+              message: "Couldn't mint DDX" 
+            }))
+    )
     (ok new-stake-info)))
