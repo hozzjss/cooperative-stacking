@@ -85,6 +85,13 @@
     locked-amount: uint,
   })
 
+
+;; allowed contract-callers
+(define-map allowance-contract-callers
+    { sender: principal, contract-caller: principal }
+    { until-burn-ht: (optional uint) })
+
+
 ;; Stolen from XVerse
 ;; Backport of .pox's burn-height-to-reward-cycle
 (define-private (burn-height-to-reward-cycle (height uint))
@@ -223,9 +230,6 @@
 
 (define-read-only (is-creator) 
   (is-eq stacker tx-sender))
-
-(define-read-only (is-not-called-by-another-contract) 
-  (is-eq contract-caller tx-sender))
 
 ;; what rewards you could get right now
 ;; and what rewards you could get later
@@ -366,7 +370,7 @@
     ((balance (stx-get-balance tx-sender))
     (next-cycle (get-next-cycle-id)))
 
-    (asserts! (is-not-called-by-another-contract)
+    (asserts! (check-caller-allowed)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
     (asserts! (is-creator)
       (err ERROR-not-my-president!))
@@ -456,7 +460,7 @@
   (let ((stake-info (get-delegator-stake tx-sender))
     (delegator-info (get-delegator-info cycle-id tx-sender))
     (stake (get locked-amount stake-info)))
-    (asserts! (is-not-called-by-another-contract)
+    (asserts! (check-caller-allowed)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
     (asserts! (is-past-cycle cycle-id)
       (err ERROR-LOCKED-have-a-little-faith))
@@ -477,7 +481,6 @@
 
       (asserts! (is-ok assertions) 
         (err (unwrap-err-panic assertions)))
-      
 
       (let 
         (
@@ -565,7 +568,7 @@
       (asserts! (is-ok (ft-transfer? stacked-stx amount from to)) 
         (err ERROR-you-poor-lol))
 
-      (asserts! (is-not-called-by-another-contract) 
+      (asserts! (check-caller-allowed) 
         (err ERROR-ummm-this-is-a-PEOPLE-contract))
       ;; now let's do some accounting
       ;; we are gonna transfer this much from your account
@@ -612,3 +615,33 @@
 
 (define-read-only (get-token-uri)
     (ok (some (var-get token-uri))))
+
+
+;; Stolen from PoX
+
+(define-private (check-caller-allowed)
+    (or (is-eq tx-sender contract-caller)
+        (let ((caller-allowed 
+                 ;; if not in the caller map, return false
+                 (unwrap! (map-get? allowance-contract-callers
+                                    { sender: tx-sender, contract-caller: contract-caller })
+                          false)))
+          ;; is the caller allowance expired?
+          (if (< burn-block-height (unwrap! (get until-burn-ht caller-allowed) true))
+              false
+              true))))
+
+;; Revoke contract-caller authorization to call stacking methods
+(define-public (disallow-contract-caller (caller principal))
+  (begin 
+    (asserts! (is-eq tx-sender contract-caller)
+              (err ERROR-UNAUTHORIZED))
+    (ok (map-delete allowance-contract-callers { sender: tx-sender, contract-caller: caller }))))
+
+(define-public (allow-contract-caller (caller principal) (until-burn-ht (optional uint)))
+  (begin
+    (asserts! (is-eq tx-sender contract-caller)
+              (err ERROR-UNAUTHORIZED))
+    (ok (map-set allowance-contract-callers
+               { sender: tx-sender, contract-caller: caller }
+               { until-burn-ht: until-burn-ht }))))
