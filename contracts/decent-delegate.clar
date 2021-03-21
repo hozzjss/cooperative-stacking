@@ -5,7 +5,7 @@
 ;; expired
 
 ;; TODO: change this when changing to mainnet
-(impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
+;; (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard.ft-trait)
 ;; (impl-trait .sip-10-ft-standard.ft-trait)
 
 
@@ -33,13 +33,10 @@
 
 (define-constant contract-address (as-contract tx-sender))
 (define-constant stacker tx-sender)
-(define-constant min-pledge (to-ustx u10000))
-;; opinionated: pool which could be granted reputation points
-(define-constant minimum-viable-pool-reward (to-ustx u5000))
 
 ;; how many blocks till collateral and delegation expire
-
-(define-constant lock-collateral-period-min u200)
+;; How many blocks before locking starts
+(define-constant stacking-grace-period (print (/ (get-reward-cycle-length) u2)))
 
 
 
@@ -101,6 +98,12 @@
     (/ (- height (get first-burnchain-block-height pox-info)) (get reward-cycle-length pox-info)))
 )
 
+(define-private (get-reward-cycle-length)
+    (let (
+        (pox-info (unwrap-panic (contract-call? 'ST000000000000000000002AMW42H.pox get-pox-info)))
+    )
+    (get reward-cycle-length pox-info)))
+
 ;; Backport of .pox's reward-cycle-to-burn-height
 (define-private (reward-cycle-to-burn-height (cycle uint))
     (let (
@@ -115,7 +118,9 @@
 
 
 (define-private (deposit (amount uint)) 
-  (is-ok (stx-transfer? amount tx-sender contract-address)))
+  (and 
+    (is-ok (stx-transfer? amount tx-sender contract-address))
+    (is-ok (ft-mint? stacked-stx amount contract-address))))
 
 
 (define-private (increase-deposit (amount uint)) 
@@ -374,8 +379,6 @@
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
     (asserts! (is-creator)
       (err ERROR-not-my-president!))
-    (asserts! (>= pledged-payout min-pledge)
-      (err ERROR-this-number-is-a-disgrace!!))
     (asserts! (>= balance collateral)
       (err ERROR-you-poor-lol))
     (asserts! (is-none (map-get? stacking-offer-details {cycle: next-cycle})) 
@@ -421,8 +424,7 @@
 ;; they would be reserved for the stacker
 (define-public (redeem-reward (cycle uint))
   ;; if within the cycle when not enough funds
-  (let ((delegator tx-sender)
-        (delegator-vault-info (get-delegator-stake delegator))
+  (let ((delegator-vault-info (get-delegator-stake tx-sender))
         (locked-amount (get locked-amount delegator-vault-info))
         (cycle-info (unwrap-panic (get-cycle cycle)))
         (total-required-stake (get total-required-stake cycle-info))
@@ -434,13 +436,13 @@
     (asserts! (> reward-to-payout u0) 
       (err ERROR-you-poor-lol))
     (let (
-      (stx-result (contract-stx? reward-to-payout delegator))
+      (stx-result (ft-transfer? stacked-stx reward-to-payout (as-contract tx-sender) tx-sender))
     )
       (asserts! (is-ok stx-result)
         (err (unwrap-err-panic stx-result)))
-      (map-set delegators 
+      (map-set delegators
         {
-          delegator: delegator, 
+          delegator: tx-sender, 
           cycle: cycle
         }
         {
@@ -508,7 +510,7 @@
                 (as-contract 
                   (contract-call? 
                     'ST000000000000000000002AMW42H.pox stack-stx 
-                      new-total-locked-amount 
+                      (stx-get-balance tx-sender) 
                       (get pox-address cycle-info)
                       burn-block-height 
                       (get cycle-count cycle-info)))
@@ -622,10 +624,10 @@
 (define-private (check-caller-allowed)
     (or (is-eq tx-sender contract-caller)
         (let ((caller-allowed 
-                 ;; if not in the caller map, return false
-                 (unwrap! (map-get? allowance-contract-callers
-                                    { sender: tx-sender, contract-caller: contract-caller })
-                          false)))
+                ;; if not in the caller map, return false
+                (unwrap! (map-get? allowance-contract-callers
+                                  { sender: tx-sender, contract-caller: contract-caller })
+                        false)))
           ;; is the caller allowance expired?
           (if (< burn-block-height (unwrap! (get until-burn-ht caller-allowed) true))
               false
@@ -643,5 +645,5 @@
     (asserts! (is-eq tx-sender contract-caller)
               (err ERROR-UNAUTHORIZED))
     (ok (map-set allowance-contract-callers
-               { sender: tx-sender, contract-caller: caller }
-               { until-burn-ht: until-burn-ht }))))
+              { sender: tx-sender, contract-caller: caller }
+              { until-burn-ht: until-burn-ht }))))

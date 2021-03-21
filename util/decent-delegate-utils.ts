@@ -145,10 +145,30 @@ const allowContractCaller = async () => {
   console.log(result);
 }
 
+const redeemReward = async () => {
+  const tx =await makeContractCall({
+    contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
+    contractName,
+    functionArgs: [
+      uintCV(1),
+    ],
+    functionName: 'redeem-reward',
+    senderKey: process.env.KEY as string,
+    network: network,
+    // fee: new BN(100000000),
+    postConditionMode: PostConditionMode.Allow,
+  });
+  const result = await broadcastTransaction(tx, network);
+  const json = result;
+
+  console.log(json);
+}
+
 
 // deployContract()
-createStackingPool();
+// createStackingPool();
 // delegate()
-// deposit()
+deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();
+// redeemReward()
