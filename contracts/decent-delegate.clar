@@ -449,7 +449,8 @@
       ;; only the delegator themselves might request to redeem
       ;; if the cycle ended the delegate might call this to payout
       ;; the delegator
-      (ft-transfer? stacked-stx reward-to-payout contract-address tx-sender))
+      ;; minus 1 uDDX for rounding sahrry
+      (ft-transfer? stacked-stx (- reward-to-payout u1) contract-address tx-sender))
     )
   )
 
