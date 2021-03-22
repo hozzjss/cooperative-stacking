@@ -82,7 +82,7 @@ describe("decent delegate contract test suite", () => {
           method: {
             name: 'delegate',
             args: [
-              "u" + 92e11,
+              "u" + 9e11,
               "true",
             ]
           },
@@ -133,46 +133,59 @@ describe("decent delegate contract test suite", () => {
     // })
 
 
-    it('should allow stacker to deposit after stacking starts', async () => {
-      await decentDelegateClient.mineBlocks(50)
+    // it('should allow stacker to deposit after stacking starts', async () => {
+    //   await decentDelegateClient.mineBlocks(50)
+    //   const tx = decentDelegateClient.createTransaction({
+    //     method: {
+    //       name: 'deposit-to-collateral',
+    //       args: ['u7500000000']
+    //     },
+    //   })
+    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      
+    //   const result =  await decentDelegateClient.submitTransaction(tx)
+    //   console.log(Result.unwrap(result))
+    // })
+
+    // it('should allow stacker to deposit after stacking starts', async () => {
+    //   // await decentDelegateClient.mineBlocks(50)
+    //   const tx = decentDelegateClient.createTransaction({
+    //     method: {
+    //       name: 'deposit-to-collateral',
+    //       args: ['u7500000000']
+    //     },
+    //   })
+    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      
+    //   const result =  await decentDelegateClient.submitTransaction(tx)
+    //   console.log(Result.unwrap(result))
+    // })
+
+
+    // it('should get the current reward cycle', async () => {
+    //   // await decentDelegateClient.mineBlocks(70)
+    //   const tx = decentDelegateClient.createQuery({
+    //     method: {
+    //       name: 'get-current-cycle-id',
+    //       args: []
+    //     }
+    //   });
+    //   // tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+    //   const result = await decentDelegateClient.submitQuery(tx);
+
+    //   console.log(Result.unwrap(result))
+    // })
+
+    it('should unwrap ddx for stx', async () => {
       const tx = decentDelegateClient.createTransaction({
         method: {
-          name: 'deposit-to-collateral',
+          name: 'unwrap-DDX',
           args: ['u7500000000']
         },
       })
-      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      tx.sign('ST000000000000000000002AMW42H')
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log(Result.unwrap(result))
-    })
-
-    it('should allow stacker to deposit after stacking starts', async () => {
-      // await decentDelegateClient.mineBlocks(50)
-      const tx = decentDelegateClient.createTransaction({
-        method: {
-          name: 'deposit-to-collateral',
-          args: ['u7500000000']
-        },
-      })
-      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
-      
-      const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log(Result.unwrap(result))
-    })
-
-
-    it('should get the current reward cycle', async () => {
-      // await decentDelegateClient.mineBlocks(70)
-      const tx = decentDelegateClient.createQuery({
-        method: {
-          name: 'get-current-cycle-id',
-          args: []
-        }
-      });
-      // tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
-      const result = await decentDelegateClient.submitQuery(tx);
-
       console.log(Result.unwrap(result))
     })
     

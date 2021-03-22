@@ -94,7 +94,7 @@ const delegate = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(90e12),
+      uintCV(80e12),
       trueCV()
     ],
     functionName: 'delegate',
@@ -117,6 +117,25 @@ const deposit = async () => {
       uintCV(6500e6),
     ],
     functionName: 'deposit-to-collateral',
+    senderKey: process.env.KEY as string,
+    network: network,
+    // fee: new BN(100000000),
+    postConditionMode: PostConditionMode.Allow,
+  });
+  const result = await broadcastTransaction(tx, network);
+  const json = result;
+
+  console.log(json);
+};
+
+const unwrap = async () => {
+  const tx =await makeContractCall({
+    contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
+    contractName,
+    functionArgs: [
+      uintCV(6500e6),
+    ],
+    functionName: 'unwrap-DDX',
     senderKey: process.env.KEY as string,
     network: network,
     // fee: new BN(100000000),
@@ -165,10 +184,13 @@ const redeemReward = async () => {
 }
 
 
+
+
 // deployContract()
 // createStackingPool();
 // delegate()
-deposit()
+// deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();
 // redeemReward()
+// unwrap()
