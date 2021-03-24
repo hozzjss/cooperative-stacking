@@ -34,7 +34,7 @@
     ;; Transfer the money to the contract to complete the payment
     (did-send-payment 
       (is-ok (stx-transfer? total-cost tx-sender contract)))
-  ) 
+  )
 
     ;; Check if the payment was processed successfully or not
     (asserts! did-send-payment 

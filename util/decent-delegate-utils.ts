@@ -5,6 +5,8 @@ import {
   callReadOnlyFunction,
   compressPublicKey,
   contractPrincipalCV,
+  createAssetInfo,
+  createFungiblePostCondition,
   createStacksPrivateKey,
   createSTXPostCondition,
   cvToJSON,
@@ -30,7 +32,7 @@ import path from 'path'
 config();
 
 
-const contractName = "decent-delegate-v1"
+const contractName = "decent-delegate-v3"
 const testContractName = "elaborate-indigo-bird"
 
 const network = new StacksMocknet();
@@ -57,7 +59,7 @@ const deployContract = async () => {
   });
 
   const result = await broadcastTransaction(tx, network);
-  console.log({result});
+  console.log(result);
 }
 
 
@@ -67,11 +69,10 @@ const createStackingPool = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(15000000000),
+      uintCV(86 * 15000000000),
       uintCV(100000000),
       uintCV(1),
       uintCV(7500000000),
-      uintCV(1000),
       uintCV(86e12),
       tupleCV({
         hashbytes: bufferCV(bitcoin.address.fromBase58Check("msWypwkAVtyU7ombJuHVGXoRAtTYPVNUJx").hash),
@@ -90,11 +91,11 @@ const createStackingPool = async () => {
 };
 
 const delegate = async () => {
-  const tx =await makeContractCall({
+  const tx = await makeContractCall({
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(80e12),
+      uintCV(86e12),
       trueCV()
     ],
     functionName: 'delegate',
@@ -114,7 +115,7 @@ const deposit = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(6500e6),
+      uintCV(2e12),
     ],
     functionName: 'deposit-to-collateral',
     senderKey: process.env.KEY as string,
@@ -129,17 +130,31 @@ const deposit = async () => {
 };
 
 const unwrap = async () => {
-  const tx =await makeContractCall({
+  const amount = 2e12
+  const tx = await makeContractCall({
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(6500e6),
+      uintCV(amount),
     ],
     functionName: 'unwrap-DDX',
     senderKey: process.env.KEY as string,
     network: network,
+    postConditions: [
+      createFungiblePostCondition(
+        'ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7',
+        FungibleConditionCode.Equal,
+        new BN(amount),
+        createAssetInfo('ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7', contractName, 'stacked-stx')
+      ),
+      createSTXPostCondition(
+        `ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7.${contractName}`, 
+        FungibleConditionCode.GreaterEqual,
+        new BN(amount),
+      )
+    ]
     // fee: new BN(100000000),
-    postConditionMode: PostConditionMode.Allow,
+    // postConditionMode: PostConditionMode.Allow,
   });
   const result = await broadcastTransaction(tx, network);
   const json = result;
@@ -169,9 +184,9 @@ const redeemReward = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(1),
+      uintCV(3),
     ],
-    functionName: 'redeem-reward',
+    functionName: 'redeem-rewards',
     senderKey: process.env.KEY as string,
     network: network,
     // fee: new BN(100000000),
@@ -192,5 +207,5 @@ const redeemReward = async () => {
 // deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();
-// redeemReward()
+redeemReward()
 // unwrap()

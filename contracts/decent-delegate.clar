@@ -35,8 +35,9 @@
 (define-constant stacker tx-sender)
 
 ;; how many blocks till collateral and delegation expire
-;; How many blocks before locking starts
-(define-constant stacking-grace-period (print (/ (get-reward-cycle-length) u2)))
+;; How many blocks before locking starts 3/5 is a personal choice might be changed later
+;; This is a new protocol all of this is new, we're still defining all this
+(define-constant stacking-grace-period (* (/ (get-reward-cycle-length) u5) u3))
 
 
 
@@ -61,10 +62,10 @@
     cycle-count: uint,
     collateral: uint,
     deposited-collateral: uint,
-    lock-collateral-period: uint,
-    lock-started-at: uint,
     total-required-stake: uint,
     pox-address: {version: (buff 1), hashbytes: (buff 20),},
+    available-funds: uint,
+    did-stack: bool,
   })
 
 (define-map cycle-stx-vault {cycle: uint} {locked-amount: uint, is-stacked: bool})
@@ -104,6 +105,11 @@
     )
     (get reward-cycle-length pox-info)))
 
+
+(define-private (get-stacking-info)
+  (contract-call? 'ST000000000000000000002AMW42H.pox 
+      get-stacker-info contract-address))
+
 ;; Backport of .pox's reward-cycle-to-burn-height
 (define-private (reward-cycle-to-burn-height (cycle uint))
     (let (
@@ -118,9 +124,7 @@
 
 
 (define-private (deposit (amount uint)) 
-  (and 
-    (is-ok (stx-transfer? amount tx-sender contract-address))
-    (is-ok (ft-mint? stacked-stx amount contract-address))))
+  (stx-transfer? amount tx-sender contract-address))
 
 
 (define-private (increase-deposit (amount uint)) 
@@ -133,30 +137,31 @@
     (asserts! cycle-exists (err ERROR-i-have-never-met-this-man-in-my-life))
     (let (
           (current-deposit  (get-current-deposit))
-          (new-collateral-amount (+ current-deposit  amount))
-          (promised-rewards (get pledged-payout (unwrap-panic cycle-info)))
+          (available-funds (get available-funds (unwrap-panic cycle-info)))
+          (new-collateral-amount (+ current-deposit amount))
+          (pledged-payout (get pledged-payout (unwrap-panic cycle-info)))
           (cycle-expired (is-past-cycle cycle-id))
-          (is-promise-fulfilled (>= new-collateral-amount promised-rewards))
+          (is-promise-fulfilled (>= new-collateral-amount pledged-payout))
     )
     (asserts! (not cycle-expired) 
       (err ERROR-didnt-we-just-go-through-this-the-other-day))
-    (set-deposit new-collateral-amount)
-    (if is-promise-fulfilled
-      (begin
-        (asserts! (< reputation u12) 
-          (err ERROR-you-cant-get-any-awesomer))
-        (asserts! (not no-more-rep)
-          (err ERROR-you-had-12-chances-wtf!))
-        (asserts! (is-ok (award-reputation))
-          (err ERROR-wtf-stacks!!!))
-        (ok true))
-      (ok true)))))
+    (set-deposit new-collateral-amount (+ available-funds amount))
+    (is-ok 
+      (if is-promise-fulfilled
+        (begin
+          (asserts! (< reputation u12) 
+            (err ERROR-you-cant-get-any-awesomer))
+          (asserts! (not no-more-rep)
+            (err ERROR-you-had-12-chances-wtf!))
+          (award-reputation))
+        (ok true)))
+      (deposit amount))))
 
 (define-private (award-reputation) 
   (let ((supply (ft-get-balance decent-delegate-reputation contract-address)))
     (if (> supply u0)
       (ft-transfer? decent-delegate-reputation u1 contract-address stacker) 
-      (ok true))))    
+      (ok true))))
 
 
 (define-private (lock-and-mint-DDX (amount uint) (sacrifice-stx-for-padding bool))
@@ -194,21 +199,23 @@
           (stx-result (stx-transfer? max-possible-addition tx-sender contract-address))
           (mint-result (ft-mint? stacked-stx max-possible-addition tx-sender))
         )
-        (asserts! (is-ok stx-result) 
+        (asserts! (is-ok stx-result)
           (err (unwrap-err-panic stx-result)))
-        (asserts! (is-ok mint-result) 
+        (asserts! (is-ok mint-result)
           (err  (unwrap-err-panic mint-result)))
     )
     (ok new-stake-info)))
 
 
-;; I know I know
-(define-private (set-deposit (deposited-collateral uint))
-  (map-set stacking-offer-details 
+(define-private (set-deposit (deposited-collateral uint) (available-funds uint))
+  (map-set stacking-offer-details
     {cycle: (get-current-cycle-id)}
     (merge 
       (unwrap-panic (get-cycle (get-current-cycle-id)))
-      { deposited-collateral: deposited-collateral,})))
+      { 
+        deposited-collateral: deposited-collateral,
+        available-funds: available-funds,
+      })))
 
 
 (define-private (contract-stx? (amount uint) (recipient principal)) 
@@ -217,7 +224,7 @@
 ;; Readonly functions
 ;;
 
-(define-read-only (get-next-cycle-info) 
+(define-read-only (get-next-cycle-info)
   (get-cycle (get-next-cycle-id)))
 
 (define-read-only (get-next-cycle-id)
@@ -247,7 +254,7 @@
     (let (
           (info-unpacked (unwrap-panic current-cycle-info))
           (pledged-payout (get pledged-payout info-unpacked))
-          (current-funds (get deposited-collateral info-unpacked))
+          (current-funds (get available-funds info-unpacked))
           ;; Sometimes the payout would be bigger than promised
           ;; And sometimes that payout comes sooner not later
           (largest-payout-pool (if (> current-funds pledged-payout) current-funds pledged-payout))
@@ -271,10 +278,8 @@
       ;; The cycle must have existed before delegating
       (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-i-have-never-met-this-man-in-my-life)))
       (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
-      (lock-collateral-period (get lock-collateral-period cycle-info))
-      (lock-started-at (get lock-started-at cycle-info))
-      (lock-expires-at (+ lock-started-at lock-collateral-period))
-      (collateral-lock-valid (< block-height lock-expires-at))
+      (cycle-start-time (reward-cycle-to-burn-height cycle-id))
+      
       (balance (stx-get-balance tx-sender)))
 
       ;; Must have enough balance to delegate
@@ -282,7 +287,7 @@
         (err ERROR-you-poor-lol))
       ;; you can't delegate your stx if the cycle expired after not
       ;; completing the amount required to start stacking
-      (asserts! collateral-lock-valid
+      (asserts! (< burn-block-height (+ cycle-start-time stacking-grace-period))
         (err ERROR-better-luck-next-time))
       (ok true)))
 
@@ -332,10 +337,9 @@
   (let 
     ((cycle-info (unwrap-panic (get-cycle cycle-id)))
     (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
-    (lock-collateral-period (get lock-collateral-period cycle-info))
-    (lock-started-at (get lock-started-at cycle-info))
+    (cycle-start-time (reward-cycle-to-burn-height cycle-id))
     (total-required-stake (get total-required-stake cycle-info))
-    (collateral-lock-expired (>= block-height (+ lock-started-at lock-collateral-period))))
+    (collateral-lock-expired (> burn-block-height (+ cycle-start-time stacking-grace-period))))
   (and collateral-lock-expired (< (get-cycle-locked-amount) total-required-stake)))
 )
 
@@ -349,6 +353,16 @@
 (define-read-only (to-ustx (amount uint)) (* amount u1000000))
 
 
+(define-read-only (get-current-ddx-value) 
+  (let (
+    (stx-balance (stx-get-balance contract-address))
+    (ddx-supply (ft-get-supply stacked-stx))
+    )
+  (/ (/ (* u1000000 stx-balance) ddx-supply) u1000000)))
+
+
+
+
 ;; Public Functions
 ;;
 
@@ -359,9 +373,6 @@
     (minimum-delegator-stake uint)
     (cycle-count uint)
     (collateral uint)
-    ;; TODO: use cycle expiry instead
-    ;; when it would be not feasible to stack
-    (lock-collateral-period uint)
     (total-required-stake uint)
     (pox-address {hashbytes: (buff 20), version: (buff 1)}))
 
@@ -378,9 +389,7 @@
     (asserts! (is-none (map-get? stacking-offer-details {cycle: next-cycle})) 
       (err ERROR-didnt-we-just-go-through-this-the-other-day))
 
-    (asserts! (deposit collateral)
-      (err ERROR-wtf-stacks!!!))
-    (ok (map-set stacking-offer-details 
+    (map-set stacking-offer-details 
       {
         cycle: next-cycle,
       } 
@@ -390,11 +399,12 @@
         cycle-count: cycle-count,
         collateral: collateral,
         deposited-collateral: collateral,
-        lock-collateral-period: lock-collateral-period,
-        lock-started-at: block-height,
+        available-funds: collateral,
         total-required-stake: total-required-stake,
         pox-address: pox-address,
-      })))
+        did-stack: false
+      })
+    (deposit collateral))
   )
 
 
@@ -404,10 +414,6 @@
     
     (asserts! (and (>= balance amount) (> amount u0))
       (err ERROR-you-poor-lol))
-
-    (asserts! (deposit amount)
-      (err ERROR-wtf-stacks!!!))
-
     (increase-deposit amount)))
 
 
@@ -415,64 +421,31 @@
   (ft-get-balance stacked-stx hodler))
 
 
-;; if you want you could get your cut but 
-;; you won't be eligible to get the rest of the rewards
-;; they would be reserved for the stacker
-(define-public (redeem-reward (cycle uint))
-  ;; if within the cycle when not enough funds
-  (let ((locked-amount (get-ddx-balance tx-sender))
-        (did-withdraw-rewards
-          (unwrap!
-            (get did-withdraw-rewards (get-delegator-info cycle tx-sender))
-            (err ERROR-i-have-never-met-this-man-in-my-life)))
-        (cycle-info 
-          (unwrap!
-            (get-cycle cycle)
-            (err ERROR-i-have-never-met-this-man-in-my-life)))
-        (total-required-stake (get total-required-stake cycle-info))
-        (reward-info (unwrap-panic (calculate-cycle-rewards cycle locked-amount total-required-stake)))
-        (reward-to-payout (get rewards-if-impatient reward-info)))
-    (asserts! (and (> reward-to-payout u0) (>= locked-amount (to-ustx u1)))
-      (err ERROR-you-poor-lol))
-    (asserts! (not did-withdraw-rewards)
-      (err ERROR-didnt-we-just-go-through-this-the-other-day))
-    (begin
-      (map-set delegators-reward-status
-        {
-          delegator: tx-sender, 
-          cycle: cycle
-        }
-        {
-          did-withdraw-rewards: true,
-        })
-      ;; have been deposited and still in the pox cycle
-      ;; only the delegator themselves might request to redeem
-      ;; if the cycle ended the delegate might call this to payout
-      ;; the delegator
-      ;; minus 1 uDDX for rounding sahrry
-      (ft-transfer? stacked-stx (- reward-to-payout u1) contract-address tx-sender))
-    )
-  )
-
-(define-private (is-funds-unlocked) 
-  (let ((contract-stx-balance (stx-get-balance contract-address))
-        (ddx-supply (unwrap-panic (get-total-supply)))) 
-        ;; Funds are not locked when balance is the same as ddx supply
-    (is-eq contract-stx-balance ddx-supply)))
+(define-private (is-funds-unlocked)
+  ;; (let ((contract-stx-balance (stx-get-balance contract-address))
+  ;;       (ddx-supply (unwrap-panic (get-total-supply)))) 
+        ;; Funds are unlocked when stacking is done
+    (is-none (get-stacking-info)))
 
 (define-public (unwrap-DDX (amount uint))
   (let (
-    (balance (unwrap! (get-balance-of tx-sender) (err ERROR-you-poor-lol))))
+    (ddx-balance (unwrap! (get-balance-of tx-sender) (err ERROR-you-poor-lol)))
+    ;; (stx-balance (stx-get-balance contract-address))
+    ;; (ddx-supply (ft-get-supply stacked-stx))
+    ;; (ddx-price (/ (* u1000000 stx-balance) ddx-supply))
+    ;; (stx-to-send (/ (* amount ddx-price) u1000000))
+    )
     (asserts! (check-caller-allowed)
       (err ERROR-ummm-this-is-a-PEOPLE-contract))
     (asserts! (is-funds-unlocked)
       (err ERROR-LOCKED-have-a-little-faith))
-    (asserts! (and (> amount u0) (>= balance amount)) 
+    
+    (asserts! (and (> amount u0) (>= ddx-balance amount)) 
       (err ERROR-you-poor-lol))
     (let (
         (stx-result (contract-stx? amount tx-sender))
         (burn-result (ft-burn? stacked-stx amount tx-sender))
-      ) 
+      )
     (asserts!
       (is-ok stx-result)
       (err (unwrap-err-panic stx-result)))
@@ -481,6 +454,33 @@
       (err (unwrap-err-panic burn-result))))
   (ok true)))
 
+
+(define-public (redeem-rewards (cycle-id uint)) 
+  (let (
+    (delegator tx-sender)
+    (did-withdraw-rewards (get did-withdraw-rewards (get-delegator-info cycle-id delegator)))
+    (cycle-info (unwrap-panic (get-cycle cycle-id)))
+    (total-available-rewards (print (get available-funds cycle-info)))
+    (ddx-balance (ft-get-balance stacked-stx delegator))
+    (ddx-supply (ft-get-supply stacked-stx))
+    (ddx-percentage (print (/ (* u1000000 ddx-balance) ddx-supply)))
+    ;; (reward-per-ddx (/ (* u1000000 total-available-rewards) ddx-supply))
+    (reward (/ (* ddx-percentage total-available-rewards) u1000000))
+    (funds-stacked (is-some (get-stacking-info)))
+    (is-complete-cycle (and (get did-stack cycle-info) (is-past-cycle cycle-id)))
+  )
+  (asserts! (is-some did-withdraw-rewards) 
+    (err ERROR-i-have-never-met-this-man-in-my-life))
+  (asserts! (not (unwrap-panic did-withdraw-rewards))
+    (err ERROR-didnt-we-just-go-through-this-the-other-day))
+  (asserts! (or is-complete-cycle funds-stacked) 
+    (err ERROR-UNAUTHORIZED))
+  (asserts! (> reward u0)
+    (err ERROR-you-poor-lol))
+  (map-set delegators-reward-status 
+    {cycle: cycle-id, delegator: delegator} 
+    {did-withdraw-rewards: true})
+  (contract-stx? reward delegator)))
 
 
 (define-public (delegate (amount uint) (sacrifice-stx-for-padding bool))
@@ -515,7 +515,7 @@
                 (as-contract 
                   (contract-call? 
                     'ST000000000000000000002AMW42H.pox stack-stx 
-                      (stx-get-balance tx-sender) 
+                      new-total-locked-amount
                       (get pox-address cycle-info)
                       burn-block-height 
                       (get cycle-count cycle-info)))
@@ -526,6 +526,11 @@
             ;; it either stacked or didn't stack
             (or (and reached-goal did-stack) (not reached-goal))
               (err (to-uint (unwrap-err-panic stacking-response))))
+          (map-set stacking-offer-details
+            {cycle: cycle-id}
+            (merge 
+              cycle-info
+              { did-stack: did-stack,}))
           (ok (map-set 
             delegators-reward-status
             { delegator: tx-sender, cycle: cycle-id } 

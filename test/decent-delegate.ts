@@ -8,7 +8,7 @@ import {
 
 import {DDXClient} from './ddx-client'
 
-const multipleContributors = Array(15).fill({key: '', address: ''}).map(() => {
+const multipleContributors = Array(4).fill({key: '', address: ''}).map(() => {
   const key = makeRandomPrivKey();
   const publicKey = pubKeyfromPrivKey(key.data);
   const address = getAddressFromPrivateKey(key.data);
@@ -58,11 +58,10 @@ describe("decent delegate contract test suite", () => {
         method: {
           name: 'create-decent-pool',
           args: [
-            "u15000000000",
+            "u" + 15000000000 * 90,
             "u100000000",
             "u1",
             "u7500000000",
-            "u40",
             "u" + 90e12,
             "{hashbytes: 0x83a2c9ebbdedebd6f2c4fde942f1e1141140aeaa, version: 0x00}",
           ]
@@ -72,8 +71,7 @@ describe("decent delegate contract test suite", () => {
       tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
       const receipt = await decentDelegateClient.submitTransaction(tx);
       const result = Result.unwrap(receipt);
-
-      console.log(result);
+      expect(receipt.success).eq(true)
     })
 
     it('should delegate by taking stx from sender', async () => {
@@ -82,7 +80,7 @@ describe("decent delegate contract test suite", () => {
           method: {
             name: 'delegate',
             args: [
-              "u" + 9e11,
+              "u" + 90e11,
               "true",
             ]
           },
@@ -92,102 +90,129 @@ describe("decent delegate contract test suite", () => {
         await decentDelegateClient.submitTransaction(tx);
         const receipt = await decentDelegateClient.submitTransaction(tx);
         const result = Result.extract(receipt);
-        console.log(result)
-        // expect(result.success).equal(true)
+        expect(result.success).equal(true)
       }
     })
 
-    // it("should reject stacking requests lower than the minimum", async () => {
-    //   const tx = decentDelegateClient.createTransaction({
-    //     method: {
-    //       name: 'delegate',
-    //       args: [
-    //         "u100",
-    //         "false"
-    //       ]
-    //     }
-    //   });
-    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+    it("should reject stacking requests lower than the minimum", async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'delegate',
+          args: [
+            "u100",
+            "false"
+          ]
+        }
+      });
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
 
-    //   const result = await decentDelegateClient.submitTransaction(tx);
+      const result = await decentDelegateClient.submitTransaction(tx);
       
-    //   expect(Result.extract(result).success).equal(false, "Minimum required");
-    // })
+      expect(Result.extract(result).success).equal(false, "Minimum required");
+    })
 
-    // it("should stack once it reaches goal", async () => {
-    //   const tx = decentDelegateClient.createTransaction({
-    //     method: {
-    //       name: 'delegate',
-    //       args: [
-    //         "u" + 100e12,
-    //         "false"
-    //       ]
-    //     }
-    //   });
-    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+    it("should stack once it reaches goal", async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'delegate',
+          args: [
+            "u" + 100e12,
+            "false"
+          ]
+        }
+      });
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
 
-    //   const result = await decentDelegateClient.submitTransaction(tx);
+      const result = await decentDelegateClient.submitTransaction(tx);
 
-    //   console.log(Result.unwrap(result))
-    //   expect(Result.extract(result).success).equal(true, "Stacked");
-    // })
+      expect(Result.extract(result).success).equal(true, "Stacked");
+    })
 
-
-    // it('should allow stacker to deposit after stacking starts', async () => {
-    //   await decentDelegateClient.mineBlocks(50)
-    //   const tx = decentDelegateClient.createTransaction({
-    //     method: {
-    //       name: 'deposit-to-collateral',
-    //       args: ['u7500000000']
-    //     },
-    //   })
-    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+    it('should allow stacker to deposit after stacking starts', async () => {
+      await decentDelegateClient.mineBlocks(50)
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'deposit-to-collateral',
+          args: ['u7500000000']
+        },
+      })
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
       
-    //   const result =  await decentDelegateClient.submitTransaction(tx)
-    //   console.log(Result.unwrap(result))
-    // })
+      const result =  await decentDelegateClient.submitTransaction(tx)
+      expect(result.success).to.eq(true)
+    })
 
-    // it('should allow stacker to deposit after stacking starts', async () => {
-    //   // await decentDelegateClient.mineBlocks(50)
-    //   const tx = decentDelegateClient.createTransaction({
-    //     method: {
-    //       name: 'deposit-to-collateral',
-    //       args: ['u7500000000']
-    //     },
-    //   })
-    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+    it('should be able to withdraw rewards prematurely', async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'redeem-rewards',
+          args: ['u1']
+        },
+      })
+      tx.sign(multipleAllocations[0].principal)
       
-    //   const result =  await decentDelegateClient.submitTransaction(tx)
-    //   console.log(Result.unwrap(result))
-    // })
+      const result =  await decentDelegateClient.submitTransaction(tx)
+      expect(result.success).to.eq(true)
+    })
 
 
-    // it('should get the current reward cycle', async () => {
-    //   // await decentDelegateClient.mineBlocks(70)
-    //   const tx = decentDelegateClient.createQuery({
-    //     method: {
-    //       name: 'get-current-cycle-id',
-    //       args: []
-    //     }
-    //   });
-    //   // tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
-    //   const result = await decentDelegateClient.submitQuery(tx);
+    it('should get the current reward cycle', async () => {
+      // await decentDelegateClient.mineBlocks(70)
+      const tx = decentDelegateClient.createQuery({
+        method: {
+          name: 'get-current-cycle-id',
+          args: []
+        }
+      });
+      // tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      const result = await decentDelegateClient.submitQuery(tx);
 
-    //   console.log(Result.unwrap(result))
-    // })
+      expect(Result.unwrap(result)).to.eq('u1')
+    })
 
     it('should unwrap ddx for stx', async () => {
+      await decentDelegateClient.mineBlocks(200)
       const tx = decentDelegateClient.createTransaction({
         method: {
           name: 'unwrap-DDX',
           args: ['u7500000000']
         },
       })
-      tx.sign('ST000000000000000000002AMW42H')
+      tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log(Result.unwrap(result))
+      expect(result.success).to.eq(true)
     })
+
+    it('should not be able to withdraw rewards a second time', async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'redeem-rewards',
+          args: ['u1']
+        },
+      })
+      tx.sign(multipleAllocations[0].principal)
+      
+      const result =  await decentDelegateClient.submitTransaction(tx)
+      console.log((result))
+      expect(result.success).to.eq(false)
+    })
+
+
+    it('should be able to withdraw full rewards at the end of the cycle', async () => {
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'redeem-rewards',
+          args: ['u1']
+        },
+      })
+      tx.sign(multipleAllocations[1].principal)
+      
+      const result =  await decentDelegateClient.submitTransaction(tx)
+      expect(result.success).to.eq(true)
+    })
+
+
     
     // it("it should stack", async () => {
     //   const tx = poxClient.createTransaction({
