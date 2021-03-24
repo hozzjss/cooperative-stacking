@@ -52,7 +52,7 @@
 
 
 
-(define-map stacking-offer-details 
+(define-map stacking-offer-details
   {
     cycle: uint
   }
@@ -480,6 +480,15 @@
   (map-set delegators-reward-status 
     {cycle: cycle-id, delegator: delegator} 
     {did-withdraw-rewards: true})
+
+  (map-set stacking-offer-details
+    {cycle: cycle-id}
+    (merge 
+      cycle-info
+      { 
+        available-funds: (- total-available-rewards reward),
+      }))
+
   (contract-stx? reward delegator)))
 
 
