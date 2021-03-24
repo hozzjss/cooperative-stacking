@@ -194,7 +194,6 @@ describe("decent delegate contract test suite", () => {
       tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log((result))
       expect(result.success).to.eq(false)
     })
 
