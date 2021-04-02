@@ -203,9 +203,9 @@ const redeemReward = async () => {
 
 // deployContract()
 // createStackingPool();
-// delegate()
+delegate()
 // deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();
-redeemReward()
+// redeemReward()
 // unwrap()

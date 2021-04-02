@@ -9,8 +9,8 @@
 ;; (impl-trait .sip-10-ft-standard.ft-trait)
 
 
-(define-constant ERROR-ummm-this-is-a-PEOPLE-contract u1000)
-(define-constant ERROR-you-poor-lol u1001)
+(define-constant ERROR-only-the-same-caller-allowed u1000)
+(define-constant ERROR-not-enough-funds u1001)
 (define-constant ERROR-this-aint-a-donation-box u1002)
 (define-constant ERROR-wtf-stacks!!! u1003)
 (define-constant ERROR-not-my-president! u1004)
@@ -74,7 +74,7 @@
 (define-map delegators-reward-status
   {delegator: principal, cycle: uint} 
   {
-    did-withdraw-rewards: bool,
+    withdrawn-rewards: uint,
   })
 
 (define-map delegator-stx-vault 
@@ -245,23 +245,20 @@
 
 ;; what rewards you could get right now
 ;; and what rewards you could get later
-(define-read-only (calculate-cycle-rewards (cycle uint) (personal-stake uint) (total-stake uint)) 
+(define-read-only (calculate-cycle-rewards (cycle-id uint)) 
   (let (
-    (current-cycle-info (get-cycle cycle))
+    (delegator tx-sender)
+    (withdrawn-rewards (default-to u0 (get withdrawn-rewards (get-delegator-info cycle-id delegator))))
+    (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-i-have-never-met-this-man-in-my-life)))
+    (available-funds (get available-funds cycle-info))
+    (total-rewards (get deposited-collateral cycle-info))
+    (ddx-balance (ft-get-balance stacked-stx delegator))
+    (ddx-supply (ft-get-supply stacked-stx))
+    (ddx-percentage (/ (* u1000000 ddx-balance) ddx-supply))
+    ;; (reward-per-ddx (/ (* u1000000 total-available-rewards) ddx-supply))
+    (reward (- (/ (* ddx-percentage total-rewards) u1000000) withdrawn-rewards))
   )
-    (asserts! (is-some current-cycle-info) 
-      (err ERROR-i-have-never-met-this-man-in-my-life))
-    (let (
-          (info-unpacked (unwrap-panic current-cycle-info))
-          (pledged-payout (get pledged-payout info-unpacked))
-          (current-funds (get available-funds info-unpacked))
-          ;; Sometimes the payout would be bigger than promised
-          ;; And sometimes that payout comes sooner not later
-          (largest-payout-pool (if (> current-funds pledged-payout) current-funds pledged-payout))
-          (rewards-if-patient (/ (* personal-stake largest-payout-pool) total-stake))
-          (rewards-if-impatient (/ (* personal-stake current-funds) total-stake))
-        )
-    (ok {rewards-if-patient: rewards-if-patient, rewards-if-impatient: rewards-if-impatient}))))
+    (ok reward)))
 
 (define-read-only (get-cycle (cycle uint)) 
   (map-get? stacking-offer-details {cycle: cycle}))
@@ -284,7 +281,7 @@
 
       ;; Must have enough balance to delegate
       (asserts! (and (>= amount minimum-delegator-stake) (>= balance amount))
-        (err ERROR-you-poor-lol))
+        (err ERROR-not-enough-funds))
       ;; you can't delegate your stx if the cycle expired after not
       ;; completing the amount required to start stacking
       (asserts! (< burn-block-height (+ cycle-start-time stacking-grace-period))
@@ -381,11 +378,11 @@
     (next-cycle (get-next-cycle-id)))
 
     (asserts! (check-caller-allowed)
-      (err ERROR-ummm-this-is-a-PEOPLE-contract))
+      (err ERROR-only-the-same-caller-allowed))
     (asserts! (is-creator)
       (err ERROR-not-my-president!))
     (asserts! (>= balance collateral)
-      (err ERROR-you-poor-lol))
+      (err ERROR-not-enough-funds))
     (asserts! (is-none (map-get? stacking-offer-details {cycle: next-cycle})) 
       (err ERROR-didnt-we-just-go-through-this-the-other-day))
 
@@ -413,7 +410,7 @@
     ((balance (stx-get-balance tx-sender)))
     
     (asserts! (and (>= balance amount) (> amount u0))
-      (err ERROR-you-poor-lol))
+      (err ERROR-not-enough-funds))
     (increase-deposit amount)))
 
 
@@ -429,19 +426,19 @@
 
 (define-public (unwrap-DDX (amount uint))
   (let (
-    (ddx-balance (unwrap! (get-balance-of tx-sender) (err ERROR-you-poor-lol)))
+    (ddx-balance (unwrap! (get-balance-of tx-sender) (err ERROR-not-enough-funds)))
     ;; (stx-balance (stx-get-balance contract-address))
     ;; (ddx-supply (ft-get-supply stacked-stx))
     ;; (ddx-price (/ (* u1000000 stx-balance) ddx-supply))
     ;; (stx-to-send (/ (* amount ddx-price) u1000000))
     )
     (asserts! (check-caller-allowed)
-      (err ERROR-ummm-this-is-a-PEOPLE-contract))
+      (err ERROR-only-the-same-caller-allowed))
     (asserts! (is-funds-unlocked)
       (err ERROR-LOCKED-have-a-little-faith))
     
     (asserts! (and (> amount u0) (>= ddx-balance amount)) 
-      (err ERROR-you-poor-lol))
+      (err ERROR-not-enough-funds))
     (let (
         (stx-result (contract-stx? amount tx-sender))
         (burn-result (ft-burn? stacked-stx amount tx-sender))
@@ -455,38 +452,40 @@
   (ok true)))
 
 
+;; Alex Graebe feedback on writing milestones
+;; Grantees: A big idea => amazing
+;; Grantees: weird unorganized milestones
+;; Alex says you should you should:
+;; listen the user
+;; input from users can change the milestones
+;; start small
+;; listen to feedback again
+
 (define-public (redeem-rewards (cycle-id uint)) 
   (let (
     (delegator tx-sender)
-    (did-withdraw-rewards (get did-withdraw-rewards (get-delegator-info cycle-id delegator)))
+    (withdrawn-rewards (default-to u0 (get withdrawn-rewards (get-delegator-info cycle-id delegator))))
     (cycle-info (unwrap-panic (get-cycle cycle-id)))
-    (total-available-rewards (print (get available-funds cycle-info)))
-    (ddx-balance (ft-get-balance stacked-stx delegator))
-    (ddx-supply (ft-get-supply stacked-stx))
-    (ddx-percentage (print (/ (* u1000000 ddx-balance) ddx-supply)))
+    (available-funds (get available-funds cycle-info))
     ;; (reward-per-ddx (/ (* u1000000 total-available-rewards) ddx-supply))
-    (reward (/ (* ddx-percentage total-available-rewards) u1000000))
+    (reward (unwrap-panic (calculate-cycle-rewards cycle-id)))
     (funds-stacked (is-some (get-stacking-info)))
     (is-complete-cycle (and (get did-stack cycle-info) (is-past-cycle cycle-id)))
   )
-  (asserts! (is-some did-withdraw-rewards) 
-    (err ERROR-i-have-never-met-this-man-in-my-life))
-  (asserts! (not (unwrap-panic did-withdraw-rewards))
-    (err ERROR-didnt-we-just-go-through-this-the-other-day))
   (asserts! (or is-complete-cycle funds-stacked) 
     (err ERROR-UNAUTHORIZED))
   (asserts! (> reward u0)
-    (err ERROR-you-poor-lol))
-  (map-set delegators-reward-status 
+    (err ERROR-not-enough-funds))
+  (map-set delegators-reward-status
     {cycle: cycle-id, delegator: delegator} 
-    {did-withdraw-rewards: true})
+    {withdrawn-rewards: (+ reward withdrawn-rewards)})
 
   (map-set stacking-offer-details
     {cycle: cycle-id}
     (merge 
       cycle-info
       { 
-        available-funds: (- total-available-rewards reward),
+        available-funds: (- available-funds reward),
       }))
 
   (contract-stx? reward delegator)))
@@ -543,7 +542,7 @@
           (ok (map-set 
             delegators-reward-status
             { delegator: tx-sender, cycle: cycle-id } 
-            { did-withdraw-rewards: false }))))))
+            { withdrawn-rewards: u0 }))))))
 
 
 ;;; DDX Section
@@ -555,7 +554,7 @@
 (define-public (transfer (amount uint) (from principal) (to principal))
     (begin
       (asserts! (check-caller-allowed) 
-        (err ERROR-ummm-this-is-a-PEOPLE-contract))
+        (err ERROR-only-the-same-caller-allowed))
       ;; IMPOSTER!!!
       (asserts! (and (is-eq from tx-sender) (not (is-eq from to)))
           (err ERROR-UNAUTHORIZED))

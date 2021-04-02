@@ -27,6 +27,7 @@ describe("decent delegate contract test suite", () => {
   let decentDelegateClient: DDXClient;
   let poxClient: Client;
   let ftTraitClient: Client;
+  let playgroundClient: Client;
   let provider: NativeClarityBinProvider;
 
   before(async () => {
@@ -40,10 +41,21 @@ describe("decent delegate contract test suite", () => {
 
     decentDelegateClient = new DDXClient(provider);
     poxClient = new Client("ST000000000000000000002AMW42H.pox", "pox", provider);
+    playgroundClient = new Client("SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB.playground", 'playground', provider);
     ftTraitClient = new Client("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard", "sip-10-ft-standard", provider);
   });
 
   describe("Best case scenarios", () => {
+    const getBalance = async (address: string) => {
+      const query = playgroundClient.createQuery({
+        method: {
+          args: [`'${address}`],
+          name: "get-my-balance"
+        },
+      })
+      const receipt = await playgroundClient.submitQuery(query)
+      return Result.unwrapUInt(receipt);
+    }
     before(async () => {
       await poxClient.checkContract();
       await poxClient.deployContract();
@@ -51,6 +63,8 @@ describe("decent delegate contract test suite", () => {
       await ftTraitClient.deployContract();
       await decentDelegateClient.checkContract();
       await decentDelegateClient.deployContract();
+      await playgroundClient.checkContract();
+      await playgroundClient.deployContract();
     });
     
     it('should create a pool', async () => {
@@ -61,7 +75,7 @@ describe("decent delegate contract test suite", () => {
             "u" + 15000000000 * 90,
             "u100000000",
             "u1",
-            "u7500000000",
+            "u" + 15000000000 * 45,
             "u" + 90e12,
             "{hashbytes: 0x83a2c9ebbdedebd6f2c4fde942f1e1141140aeaa, version: 0x00}",
           ]
@@ -128,20 +142,6 @@ describe("decent delegate contract test suite", () => {
       expect(Result.extract(result).success).equal(true, "Stacked");
     })
 
-    it('should allow stacker to deposit after stacking starts', async () => {
-      await decentDelegateClient.mineBlocks(50)
-      const tx = decentDelegateClient.createTransaction({
-        method: {
-          name: 'deposit-to-collateral',
-          args: ['u7500000000']
-        },
-      })
-      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
-      
-      const result =  await decentDelegateClient.submitTransaction(tx)
-      expect(result.success).to.eq(true)
-    })
-
     it('should be able to withdraw rewards prematurely', async () => {
       const tx = decentDelegateClient.createTransaction({
         method: {
@@ -152,8 +152,24 @@ describe("decent delegate contract test suite", () => {
       tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
+      console.log(result)
       expect(result.success).to.eq(true)
     })
+
+    it('should allow stacker to deposit after stacking starts', async () => {
+      await decentDelegateClient.mineBlocks(50)
+      const tx = decentDelegateClient.createTransaction({
+        method: {
+          name: 'deposit-to-collateral',
+          args: ['u' + 15000000000 * 45]
+        },
+      })
+      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+      
+      const result =  await decentDelegateClient.submitTransaction(tx)
+      expect(result.success).to.eq(true)
+    })
+
 
 
     it('should get the current reward cycle', async () => {
@@ -172,19 +188,23 @@ describe("decent delegate contract test suite", () => {
 
     it('should unwrap ddx for stx', async () => {
       await decentDelegateClient.mineBlocks(200)
+      const address = multipleAllocations[0].principal;
+      const balanceBefore = await getBalance(address);
       const tx = decentDelegateClient.createTransaction({
         method: {
           name: 'unwrap-DDX',
           args: ['u7500000000']
         },
       })
-      tx.sign(multipleAllocations[0].principal)
+      tx.sign(address)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      expect(result.success).to.eq(true)
+      const balanceAfter = await getBalance(address);
+      assert.equal(balanceBefore + 7500000000, balanceAfter)
+      // expect(result.success).to.eq(true)
     })
 
-    it('should not be able to withdraw rewards a second time', async () => {
+    it('should be able to withdraw rewards a second time if more rewards are there', async () => {
       const tx = decentDelegateClient.createTransaction({
         method: {
           name: 'redeem-rewards',
@@ -194,7 +214,8 @@ describe("decent delegate contract test suite", () => {
       tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      expect(result.success).to.eq(false)
+      console.log(result)
+      expect(result.success).to.eq(true)
     })
 
 
@@ -229,7 +250,6 @@ describe("decent delegate contract test suite", () => {
     //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
     //   const receipt = await poxClient.submitTransaction(tx);
     //   const result = Result.unwrap(receipt);
-    //   console.log(result);
     // })
 
     // it('should ')
