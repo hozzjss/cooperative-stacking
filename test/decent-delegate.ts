@@ -67,6 +67,17 @@ describe("decent delegate contract test suite", () => {
       return Result.unwrapUInt(receipt);
 
     }
+
+    const getCurrentCycle = async () => {
+      const tx = decentDelegateClient.createQuery({
+        method: {
+          name: 'get-current-cycle-id',
+          args: []
+        }
+      });
+      const result = await decentDelegateClient.submitQuery(tx);
+      return Number(Result.unwrap(result).replace('u', ''))
+    }
     before(async () => {
       await poxClient.checkContract();
       await poxClient.deployContract();
@@ -76,7 +87,15 @@ describe("decent delegate contract test suite", () => {
       await decentDelegateClient.deployContract();
       await playgroundClient.checkContract();
       await playgroundClient.deployContract();
+      await decentDelegateClient.mineBlocks(124);
     });
+
+    it('should get the current reward cycle', async () => {
+      const result = await getCurrentCycle();
+      console.log('current cycle', result)
+      expect(result).to.eq(Math.floor(124 / 50))
+    })
+
     
     it('should create a pool', async () => {
       const tx = decentDelegateClient.createTransaction({
@@ -154,21 +173,21 @@ describe("decent delegate contract test suite", () => {
     // })
 
     it('should be able to withdraw rewards prematurely', async () => {
+      await decentDelegateClient.mineBlocks(50)
       const tx = decentDelegateClient.createTransaction({
         method: {
           name: 'redeem-rewards',
-          args: ['u1']
+          args: ['u3']
         },
       })
       tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      // console.log(result)
+      console.log(Result.unwrap(result))
       expect(result.success).to.eq(true)
     })
 
     it('should allow stacker to deposit after stacking starts', async () => {
-      await decentDelegateClient.mineBlocks(50)
       const tx = decentDelegateClient.createTransaction({
         method: {
           name: 'deposit-to-collateral',
@@ -183,19 +202,6 @@ describe("decent delegate contract test suite", () => {
 
 
 
-    it('should get the current reward cycle', async () => {
-      // await decentDelegateClient.mineBlocks(70)
-      const tx = decentDelegateClient.createQuery({
-        method: {
-          name: 'get-current-cycle-id',
-          args: []
-        }
-      });
-      // tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
-      const result = await decentDelegateClient.submitQuery(tx);
-
-      expect(Result.unwrap(result)).to.eq('u1')
-    })
 
 
     it('should be able to withdraw full rewards at the end of the cycle', async () => {
@@ -204,7 +210,7 @@ describe("decent delegate contract test suite", () => {
         const tx = decentDelegateClient.createTransaction({
           method: {
             name: 'redeem-rewards',
-            args: ['u1']
+            args: ['u3']
           },
         })
         tx.sign(contrib.principal)

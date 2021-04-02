@@ -464,6 +464,10 @@
 (define-public (redeem-rewards (cycle-id uint)) 
   (let (
     (delegator tx-sender)
+    ;; the cycle to redeem rewards from should be the past cycle
+    ;; or the current cycle this is to ensure that when transferring
+    ;; DDX withdrawn rewards are to be taken into account
+    (is-valid-cycle (or (is-eq cycle-id (- (get-current-cycle-id) u1)) (is-eq cycle-id (get-current-cycle-id))))
     (withdrawn-rewards (default-to u0 (get withdrawn-rewards (get-delegator-info cycle-id delegator))))
     (cycle-info (unwrap-panic (get-cycle cycle-id)))
     (available-funds (get available-funds cycle-info))
@@ -472,20 +476,28 @@
     (funds-stacked (is-some (get-stacking-info)))
     (is-complete-cycle (and (get did-stack cycle-info) (is-past-cycle cycle-id)))
   )
+
+  ;; (asserts! is-valid-cycle
+  ;;   (err ERROR-UNAUTHORIZED))
   (asserts! (or is-complete-cycle funds-stacked) 
     (err ERROR-UNAUTHORIZED))
   (asserts! (> reward u0)
     (err ERROR-not-enough-funds))
   (map-set delegators-reward-status
-    {cycle: cycle-id, delegator: delegator} 
-    {withdrawn-rewards: (+ reward withdrawn-rewards)})
+    {
+      cycle: cycle-id,
+      delegator: delegator
+    } 
+    {
+      withdrawn-rewards: (+ reward withdrawn-rewards)
+    })
 
   (map-set stacking-offer-details
     {cycle: cycle-id}
     (merge 
       cycle-info
       { 
-        available-funds: (print (- available-funds reward)),
+        available-funds: (- available-funds reward),
       }))
 
   (contract-stx? reward delegator)))
@@ -559,7 +571,7 @@
       (asserts! (and (is-eq from tx-sender) (not (is-eq from to)))
           (err ERROR-UNAUTHORIZED))
       ;; here are your frozen tokens, have fun!
-      (ft-transfer? stacked-stx amount from to)        
+      (ft-transfer? stacked-stx amount from to)
     )
 )
 
