@@ -634,9 +634,7 @@
 (define-read-only (get-token-uri)
     (ok (var-get token-uri)))
 
-
 ;; Stolen from PoX
-
 (define-private (check-caller-allowed)
     (or (is-eq tx-sender contract-caller)
         (let ((caller-allowed 
@@ -663,7 +661,6 @@
     (ok (map-set allowance-contract-callers
               { sender: tx-sender, contract-caller: caller }
               { until-burn-ht: until-burn-ht }))))
-
 
 (define-read-only (get-contract-balance) 
   (ok (as-contract (stx-get-balance tx-sender))))
