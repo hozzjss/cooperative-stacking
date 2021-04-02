@@ -477,8 +477,8 @@
     (is-complete-cycle (and (get did-stack cycle-info) (is-past-cycle cycle-id)))
   )
 
-  ;; (asserts! is-valid-cycle
-  ;;   (err ERROR-UNAUTHORIZED))
+  (asserts! is-valid-cycle
+    (err ERROR-UNAUTHORIZED))
   (asserts! (or is-complete-cycle funds-stacked) 
     (err ERROR-UNAUTHORIZED))
   (asserts! (> reward u0)
