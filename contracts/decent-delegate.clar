@@ -563,15 +563,39 @@
 (define-fungible-token stacked-stx)
 
 
-(define-public (transfer (amount uint) (from principal) (to principal))
-    (begin
+(define-private (calculate-withdrawn-rewards (total-withdrawn-rewards uint) (total-ddx uint) (ddx-to-transfer uint)) 
+  (let (
+        (percentage (/ (* ddx-to-transfer u1000000) total-ddx))
+        (total-withdrawn-reward-amount (/ (* total-withdrawn-rewards percentage) u1000000)))
+  
+  total-withdrawn-reward-amount))
+
+(define-public (transfer (amount uint) (sender principal) (recipient principal))
+    (let (
+      (ddx-balance (ft-get-balance stacked-stx sender))
+      (current-cycle-id (get-current-cycle-id))
+      (current-cycle-withdrawn-rewards (get withdrawn-rewards (get-delegator-info current-cycle-id sender)))
+      (last-cycle-id (- current-cycle-id u1))
+      (last-cycle-withdrawn-rewards (get withdrawn-rewards (get-delegator-info last-cycle-id sender)))
+    )
       (asserts! (check-caller-allowed) 
         (err ERROR-only-the-same-caller-allowed))
       ;; IMPOSTER!!!
-      (asserts! (and (is-eq from tx-sender) (not (is-eq from to)))
+      (asserts! (and (is-eq sender tx-sender) (not (is-eq sender recipient)))
           (err ERROR-UNAUTHORIZED))
+      (if (is-some last-cycle-withdrawn-rewards) 
+        (map-set delegators-reward-status 
+          {delegator: recipient, cycle: last-cycle-id}
+          {withdrawn-rewards: (calculate-withdrawn-rewards (unwrap-panic last-cycle-withdrawn-rewards) ddx-balance amount)})
+        false)
+      (if (is-some current-cycle-withdrawn-rewards) 
+        (map-set delegators-reward-status 
+          {delegator: recipient, cycle: current-cycle-id}
+          {withdrawn-rewards: (calculate-withdrawn-rewards (unwrap-panic current-cycle-withdrawn-rewards) ddx-balance amount)})
+        false)
+      
       ;; here are your frozen tokens, have fun!
-      (ft-transfer? stacked-stx amount from to)
+      (ft-transfer? stacked-stx amount sender recipient)
     )
 )
 
