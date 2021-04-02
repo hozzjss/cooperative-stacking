@@ -8,7 +8,7 @@ import {
 
 import {DDXClient} from './ddx-client'
 
-const multipleContributors = Array(4).fill({key: '', address: ''}).map(() => {
+const multipleContributors = Array(5).fill({key: '', address: ''}).map(() => {
   const key = makeRandomPrivKey();
   const publicKey = pubKeyfromPrivKey(key.data);
   const address = getAddressFromPrivateKey(key.data);
@@ -55,6 +55,17 @@ describe("decent delegate contract test suite", () => {
       })
       const receipt = await playgroundClient.submitQuery(query)
       return Result.unwrapUInt(receipt);
+    }
+    const getContractBalance = async () => {
+      const query = decentDelegateClient.createQuery({
+        method: {
+          args: [],
+          name: "get-contract-balance"
+        },
+      })
+      const receipt = await decentDelegateClient.submitQuery(query)
+      return Result.unwrapUInt(receipt);
+
     }
     before(async () => {
       await poxClient.checkContract();
@@ -103,6 +114,7 @@ describe("decent delegate contract test suite", () => {
         tx.sign(contrib.address)
         await decentDelegateClient.submitTransaction(tx);
         const receipt = await decentDelegateClient.submitTransaction(tx);
+        console.log(receipt)
         const result = Result.extract(receipt);
         expect(result.success).equal(true)
       }
@@ -125,22 +137,22 @@ describe("decent delegate contract test suite", () => {
       expect(Result.extract(result).success).equal(false, "Minimum required");
     })
 
-    it("should stack once it reaches goal", async () => {
-      const tx = decentDelegateClient.createTransaction({
-        method: {
-          name: 'delegate',
-          args: [
-            "u" + 100e12,
-            "false"
-          ]
-        }
-      });
-      tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
+    // it("should stack once it reaches goal", async () => {
+    //   const tx = decentDelegateClient.createTransaction({
+    //     method: {
+    //       name: 'delegate',
+    //       args: [
+    //         "u" + 100e12,
+    //         "false"
+    //       ]
+    //     }
+    //   });
+    //   tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
 
-      const result = await decentDelegateClient.submitTransaction(tx);
+    //   const result = await decentDelegateClient.submitTransaction(tx);
 
-      expect(Result.extract(result).success).equal(true, "Stacked");
-    })
+    //   expect(Result.extract(result).success).equal(true, "Stacked");
+    // })
 
     it('should be able to withdraw rewards prematurely', async () => {
       const tx = decentDelegateClient.createTransaction({
@@ -152,7 +164,7 @@ describe("decent delegate contract test suite", () => {
       tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log(result)
+      // console.log(result)
       expect(result.success).to.eq(true)
     })
 
@@ -188,48 +200,58 @@ describe("decent delegate contract test suite", () => {
 
     it('should unwrap ddx for stx', async () => {
       await decentDelegateClient.mineBlocks(200)
-      const address = multipleAllocations[0].principal;
-      const balanceBefore = await getBalance(address);
-      const tx = decentDelegateClient.createTransaction({
-        method: {
-          name: 'unwrap-DDX',
-          args: ['u7500000000']
-        },
-      })
-      tx.sign(address)
-      
-      const result =  await decentDelegateClient.submitTransaction(tx)
-      const balanceAfter = await getBalance(address);
-      assert.equal(balanceBefore + 7500000000, balanceAfter)
+      for (let contrib of multipleAllocations) {
+
+        const address = contrib.principal;
+        const balanceBefore = await getBalance(address);
+        const tx = decentDelegateClient.createTransaction({
+          method: {
+            name: 'unwrap-DDX',
+            args: ['u' + 90e11]
+          },
+        })
+        tx.sign(address)
+        
+        const result =  await decentDelegateClient.submitTransaction(tx)
+        const balanceAfter = await getBalance(address);
+        assert.equal(balanceBefore + 90e11, balanceAfter)
+      }
+      console.log('balance after unwrapping',await getContractBalance());
+
       // expect(result.success).to.eq(true)
     })
 
-    it('should be able to withdraw rewards a second time if more rewards are there', async () => {
-      const tx = decentDelegateClient.createTransaction({
-        method: {
-          name: 'redeem-rewards',
-          args: ['u1']
-        },
-      })
-      tx.sign(multipleAllocations[0].principal)
+    // it('should be able to withdraw rewards a second time if more rewards are there', async () => {
+    //   const tx = decentDelegateClient.createTransaction({
+    //     method: {
+    //       name: 'redeem-rewards',
+    //       args: ['u1']
+    //     },
+    //   })
+    //   tx.sign(multipleAllocations[0].principal)
       
-      const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log(result)
-      expect(result.success).to.eq(true)
-    })
+    //   const result =  await decentDelegateClient.submitTransaction(tx)
+    //   console.log(result)
+    //   expect(result.success).to.eq(true)
+    // })
 
 
     it('should be able to withdraw full rewards at the end of the cycle', async () => {
-      const tx = decentDelegateClient.createTransaction({
-        method: {
-          name: 'redeem-rewards',
-          args: ['u1']
-        },
-      })
-      tx.sign(multipleAllocations[1].principal)
-      
-      const result =  await decentDelegateClient.submitTransaction(tx)
-      expect(result.success).to.eq(true)
+      for (let contrib of multipleAllocations) {
+
+        const tx = decentDelegateClient.createTransaction({
+          method: {
+            name: 'redeem-rewards',
+            args: ['u1']
+          },
+        })
+        tx.sign(contrib.principal)
+        
+        const result =  await decentDelegateClient.submitTransaction(tx)
+        // console.log(result)
+        expect(result.success).to.eq(true)
+      }
+      console.log(await getContractBalance());
     })
 
 

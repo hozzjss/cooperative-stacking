@@ -130,7 +130,7 @@ const deposit = async () => {
 };
 
 const unwrap = async () => {
-  const amount = 2e12
+  const amount = 86e12
   const tx = await makeContractCall({
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
@@ -184,7 +184,7 @@ const redeemReward = async () => {
     contractAddress: "ST21T5JFBQQPYQNQJRKYYJGQHW4A12G5ENBBA9WS7",
     contractName,
     functionArgs: [
-      uintCV(3),
+      uintCV(1),
     ],
     functionName: 'redeem-rewards',
     senderKey: process.env.KEY as string,
@@ -203,9 +203,9 @@ const redeemReward = async () => {
 
 // deployContract()
 // createStackingPool();
-delegate()
+// delegate()
 // deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();
 // redeemReward()
-// unwrap()
+unwrap()

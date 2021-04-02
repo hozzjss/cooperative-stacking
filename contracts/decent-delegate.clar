@@ -485,7 +485,7 @@
     (merge 
       cycle-info
       { 
-        available-funds: (- available-funds reward),
+        available-funds: (print (- available-funds reward)),
       }))
 
   (contract-stx? reward delegator)))
@@ -619,3 +619,7 @@
     (ok (map-set allowance-contract-callers
               { sender: tx-sender, contract-caller: caller }
               { until-burn-ht: until-burn-ht }))))
+
+
+(define-read-only (get-contract-balance) 
+  (ok (as-contract (stx-get-balance tx-sender))))
