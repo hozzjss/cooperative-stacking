@@ -8,7 +8,7 @@ import {
 
 import {DDXClient} from './ddx-client'
 
-const multipleContributors = Array(5).fill({key: '', address: ''}).map(() => {
+const multipleContributors = Array(10).fill({key: '', address: ''}).map(() => {
   const key = makeRandomPrivKey();
   const publicKey = pubKeyfromPrivKey(key.data);
   const address = getAddressFromPrivateKey(key.data);
@@ -112,9 +112,8 @@ describe("decent delegate contract test suite", () => {
         })
         // query.sign('421a4472c07e13886eaa9229573140ad5e889f3dd7090ab4ac919e5d84b9dce8')
         tx.sign(contrib.address)
-        await decentDelegateClient.submitTransaction(tx);
         const receipt = await decentDelegateClient.submitTransaction(tx);
-        console.log(receipt)
+        // console.log(receipt)
         const result = Result.extract(receipt);
         expect(result.success).equal(true)
       }
@@ -198,6 +197,26 @@ describe("decent delegate contract test suite", () => {
       expect(Result.unwrap(result)).to.eq('u1')
     })
 
+
+    it('should be able to withdraw full rewards at the end of the cycle', async () => {
+      for (let contrib of multipleAllocations) {
+
+        const tx = decentDelegateClient.createTransaction({
+          method: {
+            name: 'redeem-rewards',
+            args: ['u1']
+          },
+        })
+        tx.sign(contrib.principal)
+        
+        const result =  await decentDelegateClient.submitTransaction(tx)
+        console.log(result);
+        expect(result.success).to.eq(true)
+      }
+      console.log(await getContractBalance());
+    })
+
+
     it('should unwrap ddx for stx', async () => {
       await decentDelegateClient.mineBlocks(200)
       for (let contrib of multipleAllocations) {
@@ -235,24 +254,6 @@ describe("decent delegate contract test suite", () => {
     //   expect(result.success).to.eq(true)
     // })
 
-
-    it('should be able to withdraw full rewards at the end of the cycle', async () => {
-      for (let contrib of multipleAllocations) {
-
-        const tx = decentDelegateClient.createTransaction({
-          method: {
-            name: 'redeem-rewards',
-            args: ['u1']
-          },
-        })
-        tx.sign(contrib.principal)
-        
-        const result =  await decentDelegateClient.submitTransaction(tx)
-        // console.log(result)
-        expect(result.success).to.eq(true)
-      }
-      console.log(await getContractBalance());
-    })
 
 
     
