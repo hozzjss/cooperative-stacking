@@ -9,23 +9,23 @@
 ;; (impl-trait .sip-10-ft-standard.ft-trait)
 
 
-(define-constant ERROR-only-the-same-caller-allowed u1000)
+(define-constant ERROR-UNAUTHORIZED u1000)
 (define-constant ERROR-not-enough-funds u1001)
 (define-constant ERROR-this-aint-a-donation-box u1002)
 (define-constant ERROR-wtf-stacks!!! u1003)
-(define-constant ERROR-not-my-president! u1004)
-(define-constant ERROR-didnt-we-just-go-through-this-the-other-day u1005)
+(define-constant ERROR-not-contract-creator u1004)
+(define-constant ERROR-can-only-do-this-once u1005)
 (define-constant ERROR-only-current-cycle-bro! u1006)
-(define-constant ERROR-i-have-never-met-this-man-in-my-life u1007)
+(define-constant ERROR-not-found u1007)
 (define-constant ERROR-you-cant-get-any-awesomer u1008)
 (define-constant ERROR-you-had-12-chances-wtf! u1009)
 (define-constant ERROR-you-are-not-welcome-here u1010)
-(define-constant ERROR-this-number-is-a-disgrace!! u1011)
+(define-constant ERROR-amount-too-small u1011)
 (define-constant ERROR-better-luck-next-time u1012)
 (define-constant ERROR-we-need-a-lot-but-not-THAT-much u1013)
 (define-constant ERROR-requires-padding u1014)
 (define-constant ERROR-LOCKED-have-a-little-faith u1015)
-(define-constant ERROR-UNAUTHORIZED u1016)
+
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
 
@@ -134,7 +134,7 @@
         (reputation (ft-get-balance decent-delegate-reputation stacker))
         (no-more-rep (reputation-no-mo!))
         (cycle-exists (is-some cycle-info)))
-    (asserts! cycle-exists (err ERROR-i-have-never-met-this-man-in-my-life))
+    (asserts! cycle-exists (err ERROR-not-found))
     (let (
           (current-deposit  (get-current-deposit))
           (available-funds (get available-funds (unwrap-panic cycle-info)))
@@ -144,7 +144,7 @@
           (is-promise-fulfilled (>= new-collateral-amount pledged-payout))
     )
     (asserts! (not cycle-expired) 
-      (err ERROR-didnt-we-just-go-through-this-the-other-day))
+      (err ERROR-can-only-do-this-once))
     (set-deposit new-collateral-amount (+ available-funds amount))
     (is-ok 
       (if is-promise-fulfilled
@@ -249,7 +249,7 @@
   (let (
     (delegator tx-sender)
     (withdrawn-rewards (default-to u0 (get withdrawn-rewards (get-delegator-info cycle-id delegator))))
-    (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-i-have-never-met-this-man-in-my-life)))
+    (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-not-found)))
     (available-funds (get available-funds cycle-info))
     (total-rewards (get deposited-collateral cycle-info))
     (ddx-balance (ft-get-balance stacked-stx delegator))
@@ -273,7 +273,7 @@
   (let 
       ((cycle-id (get-next-cycle-id))
       ;; The cycle must have existed before delegating
-      (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-i-have-never-met-this-man-in-my-life)))
+      (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-not-found)))
       (minimum-delegator-stake (get minimum-delegator-stake cycle-info))
       (cycle-start-time (reward-cycle-to-burn-height cycle-id))
       
@@ -378,13 +378,13 @@
     (next-cycle (get-next-cycle-id)))
 
     (asserts! (check-caller-allowed)
-      (err ERROR-only-the-same-caller-allowed))
+      (err ERROR-UNAUTHORIZED))
     (asserts! (is-creator)
-      (err ERROR-not-my-president!))
+      (err ERROR-not-contract-creator))
     (asserts! (>= balance collateral)
       (err ERROR-not-enough-funds))
     (asserts! (is-none (map-get? stacking-offer-details {cycle: next-cycle})) 
-      (err ERROR-didnt-we-just-go-through-this-the-other-day))
+      (err ERROR-can-only-do-this-once))
 
     (map-set stacking-offer-details 
       {
@@ -433,7 +433,7 @@
     ;; (stx-to-send (/ (* amount ddx-price) u1000000))
     )
     (asserts! (check-caller-allowed)
-      (err ERROR-only-the-same-caller-allowed))
+      (err ERROR-UNAUTHORIZED))
     (asserts! (is-funds-unlocked)
       (err ERROR-LOCKED-have-a-little-faith))
     
@@ -578,8 +578,17 @@
       (last-cycle-id (- current-cycle-id u1))
       (last-cycle-withdrawn-rewards (get withdrawn-rewards (get-delegator-info last-cycle-id sender)))
     )
+      ;; amounts lower than 1 DDX are too low
+      ;; so I thought to myself that a person
+      ;; could send an amount too small that 
+      ;; the transferred withdrawn amount is zero
+      ;; then I thought well it's actually pretty
+      ;; costly in tx fees to do so, so I didn't care to make
+      ;; this max 1 whole DDX
+      (asserts! (>= amount u1000) 
+        (err ERROR-amount-too-small))
       (asserts! (check-caller-allowed) 
-        (err ERROR-only-the-same-caller-allowed))
+        (err ERROR-UNAUTHORIZED))
       ;; IMPOSTER!!!
       (asserts! (and (is-eq sender tx-sender) (not (is-eq sender recipient)))
           (err ERROR-UNAUTHORIZED))
@@ -593,18 +602,17 @@
           {delegator: recipient, cycle: current-cycle-id}
           {withdrawn-rewards: (calculate-withdrawn-rewards (unwrap-panic current-cycle-withdrawn-rewards) ddx-balance amount)})
         false)
-      
       ;; here are your frozen tokens, have fun!
       (ft-transfer? stacked-stx amount sender recipient)
     )
 )
 
-(define-data-var token-uri (string-utf8 256) u"")
+(define-data-var token-uri (optional (string-utf8 256)) none)
 
-(define-public (set-token-uri (uri (string-utf8 256))) 
+(define-public (set-token-uri (uri (string-utf8 256)))
   (begin
-    (asserts! (is-creator) (err ERROR-not-my-president!))
-    (ok (var-set token-uri uri))))
+    (asserts! (is-creator) (err ERROR-not-contract-creator))
+    (ok (var-set token-uri (some uri)))))
 
 ;; stolen from jude
 
@@ -624,7 +632,7 @@
     (ok (ft-get-supply stacked-stx)))
 
 (define-read-only (get-token-uri)
-    (ok (some (var-get token-uri))))
+    (ok (var-get token-uri)))
 
 
 ;; Stolen from PoX
