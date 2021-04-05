@@ -19,12 +19,10 @@
 (define-constant ERROR-not-found u1007)
 (define-constant ERROR-you-cant-get-any-awesomer u1008)
 (define-constant ERROR-you-had-12-chances-wtf! u1009)
-(define-constant ERROR-you-are-not-welcome-here u1010)
+(define-constant ERROR-LOCKED-have-a-little-faith u1010)
 (define-constant ERROR-amount-too-small u1011)
 (define-constant ERROR-better-luck-next-time u1012)
-(define-constant ERROR-we-need-a-lot-but-not-THAT-much u1013)
-(define-constant ERROR-requires-padding u1014)
-(define-constant ERROR-LOCKED-have-a-little-faith u1015)
+(define-constant ERROR-requires-padding u1013)
 
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday

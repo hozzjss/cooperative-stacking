@@ -42,7 +42,8 @@ describe("decent delegate contract test suite", () => {
     decentDelegateClient = new DDXClient(provider);
     poxClient = new Client("ST000000000000000000002AMW42H.pox", "pox", provider);
     playgroundClient = new Client("SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB.playground", 'playground', provider);
-    ftTraitClient = new Client("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard", "sip-10-ft-standard", provider);
+    // ftTraitClient = new Client("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-10-ft-standard", "sip-10-ft-standard", provider);
+    ftTraitClient = new Client("SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB.sip-10-ft-standard", "sip-10-ft-standard", provider);
   });
 
   describe("Best case scenarios", () => {
