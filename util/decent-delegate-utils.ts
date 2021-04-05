@@ -32,10 +32,10 @@ import path from 'path'
 config();
 
 
-const contractName = "decent-delegate-v3"
+const contractName = "decent-delegate-v5"
 const testContractName = "elaborate-indigo-bird"
 
-const network = new StacksMocknet();
+const network = new StacksTestnet();
 // const network = new StacksTestnet();
 
 const privateKey = createStacksPrivateKey(process.env.KEY as string);
@@ -201,11 +201,11 @@ const redeemReward = async () => {
 
 
 
-// deployContract()
+deployContract()
 // createStackingPool();
 // delegate()
 // deposit()
 // console.log(standardPrincipalCV("SP2F2NYNDDJTAXFB62PJX351DCM4ZNEVRYJSC92CT"));
 // allowContractCaller();
 // redeemReward()
-unwrap()
+// unwrap()
