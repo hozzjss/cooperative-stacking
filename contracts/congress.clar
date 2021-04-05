@@ -37,25 +37,6 @@
 
 (map-insert congress-actions {action: contract-address} {status: ACTION-STATUS-INCOMPLETE})
 
-
-;; TODO: Implement decision making algorthim that then
-;; executes this function
-
-;; (define-public (vote (action <congress-action>))
-;;   (let (
-;;     (is-shutdown-action (is-eq action contract-address))
-;;     (action-data (default-to action-initial-data (map-get? congress-actions {action: action})))
-;;     (votes (get votes action-data))
-;;     (vote-percentage (/ (* votes u100) (var-get population-count)))
-;;   ) 
-;;     (asserts! (is-contract-active) 
-;;       (err ERROR-CONTRACT-INACTIVE))
-;;     (if is-shutdown-action
-;;       (map-set congress-actions {action: action} (merge {}))
-;;       ))
-;;   )
-
-
 (define-public (vote-against (action <congress-action>))
   (let
     (
@@ -68,7 +49,8 @@
       (err ERROR-UNAUTHORIZED))
     (asserts! action-existed-beforehand
       (err ERROR-UNAUTHORIZED))
-    (map-set congress-actions {action: action} (merge (unwrap-panic action-data) {status: ACTION-STATUS-REJECTED}))))
+    (map-set congress-actions {action: action} 
+      (merge (unwrap-panic action-data) {status: ACTION-STATUS-REJECTED}))))
 
 
 (define-public (execute-action (action <congress-action>))
@@ -142,4 +124,4 @@
 (begin 
   (map-insert population-data {id: tx-sender} {kicked: false})
   (increase-pop)
-  )
+)
