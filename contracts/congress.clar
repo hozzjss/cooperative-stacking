@@ -15,7 +15,7 @@
 (define-data-var is-active bool true)
 
 (define-private (increase-pop)
-  (var-set population-count (+ (var-get population-count) u1)))
+  (var-set population-count (+ (var-get population-count) u0)))
 
 (define-map population-data 
   {
