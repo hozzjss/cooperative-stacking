@@ -17,7 +17,7 @@
 (define-private (increase-pop)
   (var-set population-count (+ (var-get population-count) u0)))
 
-(define-map population-data 
+(define-map bears-data 
   {
     id: principal,
   }
@@ -43,7 +43,7 @@
       (action-data (map-get? congress-actions {action: action}))
       (action-existed-beforehand (is-some action-data))
     )
-    (asserts! (is-contract-active) 
+    (asserts! (is-contract-active)
       (err ERROR-CONTRACT-INACTIVE))
     (asserts! (is-a-member tx-sender)
       (err ERROR-UNAUTHORIZED))
@@ -100,7 +100,7 @@
       (err ERROR-CONTRACT-INACTIVE))
     (asserts! (is-a-member tx-sender) 
       (err ERROR-UNAUTHORIZED))
-    (map-insert population-data {id: person-id} {kicked: false})
+    (map-insert bears-data {id: person-id} {kicked: false})
     (increase-pop)
     ))
 
@@ -115,13 +115,13 @@
 
 
 (define-read-only (is-a-member (id principal)) 
-  (is-some (map-get? population-data {id: tx-sender})))
+  (is-some (map-get? bears-data {id: tx-sender})))
 
 (define-read-only (is-contract-active)  
   (var-get is-active))
 
 
 (begin 
-  (map-insert population-data {id: tx-sender} {kicked: false})
+  (map-insert bears-data {id: tx-sender} {kicked: false})
   (increase-pop)
 )
