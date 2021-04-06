@@ -641,7 +641,7 @@
                                   { sender: tx-sender, contract-caller: contract-caller })
                         false)))
           ;; is the caller allowance expired?
-          (if (< burn-block-height (unwrap! (get until-burn-ht caller-allowed) true))
+          (if (> burn-block-height (unwrap! (get until-burn-ht caller-allowed) true))
               false
               true))))
 
