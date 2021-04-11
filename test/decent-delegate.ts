@@ -1,4 +1,4 @@
-import { Client, JsonRpcProvider, NativeClarityBinProvider, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
+import { Client, extractResult, JsonRpcProvider, NativeClarityBinProvider, Provider, ProviderRegistry, Result, unwrapResult } from "@blockstack/clarity";
 import { getDefaultBinaryFilePath } from "@blockstack/clarity-native-bin";
 import { createStacksPrivateKey, getAddressFromPrivateKey, makeRandomPrivKey, pubKeyfromPrivKey, standardPrincipalCV } from "@stacks/transactions";
 import { assert, expect } from "chai";
@@ -152,7 +152,7 @@ describe("decent delegate contract test suite", () => {
       tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
 
       const result = await decentDelegateClient.submitTransaction(tx);
-      
+      console.log(Result.unwrap(result))
       expect(Result.extract(result).success).equal(false, "Minimum required");
     })
 
@@ -184,7 +184,6 @@ describe("decent delegate contract test suite", () => {
       tx.sign(multipleAllocations[0].principal)
       
       const result =  await decentDelegateClient.submitTransaction(tx)
-      console.log(Result.unwrap(result))
       expect(result.success).to.eq(true)
     })
 

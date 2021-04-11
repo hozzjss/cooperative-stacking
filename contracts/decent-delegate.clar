@@ -23,6 +23,7 @@
 (define-constant ERROR-amount-too-small u1011)
 (define-constant ERROR-better-luck-next-time u1012)
 (define-constant ERROR-requires-padding u1013)
+(define-constant ERROR-too-soon u1014)
 
 
 ;; replace this with your public key hashbytes pay to public key hashbytes p2pkh, i learnt that yesterday
@@ -160,6 +161,20 @@
     (if (> supply u0)
       (ft-transfer? decent-delegate-reputation u1 contract-address stacker) 
       (ok true))))
+
+(define-public (mark-pool-failed (cycle-id uint))
+  (let (
+    (cycle (unwrap! (get-cycle cycle-id) (err ERROR-not-found)))
+    (current-cycle-id (get-current-cycle-id))
+    (cycle-is-past (> current-cycle-id cycle-id))
+    (deposited-collateral (get deposited-collateral cycle))
+    (pledged-payout (get pledged-payout cycle))
+    (promise-unfulfilled (< deposited-collateral pledged-payout))
+  ) 
+  (asserts! (and cycle-is-past promise-unfulfilled)
+    (err ERROR-too-soon))
+  (ft-burn? decent-delegate-reputation u1 contract-address))
+)
 
 
 (define-private (lock-and-mint-DDX (amount uint) (sacrifice-stx-for-padding bool))
