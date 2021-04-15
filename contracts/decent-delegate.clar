@@ -177,6 +177,24 @@
 )
 
 
+;; As anyone I should be able to mark
+;; the pool as invalid after the current cycle
+;; changes to the next cycle
+(define-public (withdraw-collateral (cycle-id uint))
+  (let (
+    (cycle-info (unwrap! (get-cycle cycle-id) (err ERROR-not-found)))
+    (did-stack (get did-stack cycle-info))
+    (deposited-collateral (get deposited-collateral cycle-info))
+    ;; you're only allowed to stack on the next cycle
+    (cycle-expired (>= cycle-id (get-current-cycle-id)))
+  )
+  (asserts! cycle-expired (err ERROR-too-soon))
+  (asserts! (not did-stack) (err ERROR-better-luck-next-time))
+  (contract-stx? deposited-collateral stacker)
+  )
+)
+
+
 (define-private (lock-and-mint-DDX (amount uint) (sacrifice-stx-for-padding bool))
   (let (
       (cycle-info (unwrap-panic (get-cycle (get-next-cycle-id))))
@@ -432,18 +450,11 @@
 
 
 (define-private (is-funds-unlocked)
-  ;; (let ((contract-stx-balance (stx-get-balance contract-address))
-  ;;       (ddx-supply (unwrap-panic (get-total-supply)))) 
-        ;; Funds are unlocked when stacking is done
     (is-none (get-stacking-info)))
 
 (define-public (unwrap-DDX (amount uint))
   (let (
     (ddx-balance (unwrap! (get-balance-of tx-sender) (err ERROR-not-enough-funds)))
-    ;; (stx-balance (stx-get-balance contract-address))
-    ;; (ddx-supply (ft-get-supply stacked-stx))
-    ;; (ddx-price (/ (* u1000000 stx-balance) ddx-supply))
-    ;; (stx-to-send (/ (* amount ddx-price) u1000000))
     )
     (asserts! (check-caller-allowed)
       (err ERROR-UNAUTHORIZED))

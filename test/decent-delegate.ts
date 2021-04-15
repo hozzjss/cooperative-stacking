@@ -93,7 +93,6 @@ describe("decent delegate contract test suite", () => {
 
     it('should get the current reward cycle', async () => {
       const result = await getCurrentCycle();
-      console.log('current cycle', result)
       expect(result).to.eq(Math.floor(124 / 50))
     })
 
@@ -152,8 +151,7 @@ describe("decent delegate contract test suite", () => {
       tx.sign('SP3GWX3NE58KXHESRYE4DYQ1S31PQJTCRXB3PE9SB')
 
       const result = await decentDelegateClient.submitTransaction(tx);
-      console.log(Result.unwrap(result))
-      expect(Result.extract(result).success).equal(false, "Minimum required");
+      expect(result.success).is.false;
     })
 
     // it("should stack once it reaches goal", async () => {
@@ -216,10 +214,8 @@ describe("decent delegate contract test suite", () => {
         tx.sign(contrib.principal)
         
         const result =  await decentDelegateClient.submitTransaction(tx)
-        console.log(result);
         expect(result.success).to.eq(true)
       }
-      console.log(await getContractBalance());
     })
 
 
@@ -241,7 +237,6 @@ describe("decent delegate contract test suite", () => {
         const balanceAfter = await getBalance(address);
         assert.equal(balanceBefore + 90e11, balanceAfter)
       }
-      console.log('balance after unwrapping',await getContractBalance());
 
       // expect(result.success).to.eq(true)
     })
